@@ -21,11 +21,19 @@ import {
   addRelatedLink,
 } from './src/memory-file.js';
 import { summarizeForMemory, shouldCrossLink } from './src/llm.js';
-import { getAllMemoryFiles } from './src/config.js';
+import { getAllMemoryFiles, loadConfig } from './src/config.js';
 import { commit } from './src/git.js';
+import { configureLogger } from './src/logger.js';
 import type { SearchResult } from './src/types.js';
 
 async function main(): Promise<void> {
+  // Initialize logger
+  try {
+    const cfg = loadConfig();
+    configureLogger(cfg.logging);
+  } catch {
+    // config might not be initialized yet
+  }
   const server = new Server(
     {
       name: 'memory-mcp',

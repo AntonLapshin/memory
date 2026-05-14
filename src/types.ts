@@ -24,12 +24,18 @@ export interface EmbeddingConfig {
   apiKeyEnv?: string;
 }
 
+export interface LoggingConfig {
+  enabled: boolean;
+  level: 'debug' | 'info' | 'warn' | 'error';
+}
+
 export interface Config {
   version: number;
   git: GitConfig;
   qdrant: QdrantConfig;
   llm: LlmConfig;
   embedding: EmbeddingConfig;
+  logging: LoggingConfig;
 }
 
 export interface MemoryFile {

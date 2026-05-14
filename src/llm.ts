@@ -1,4 +1,5 @@
 import { loadConfig } from './config.js';
+import { logger } from './logger.js';
 import type { SummarizeResult, CrossLinkDecision } from './types.js';
 
 interface ChatOptions {
@@ -16,6 +17,8 @@ export async function chat(
 ): Promise<string> {
   const config = loadConfig();
   const { baseUrl, model } = config.llm;
+
+  logger.debug('LLM chat request', { model, msgCount: messages.length, options });
 
   const body: Record<string, unknown> = {
     model,
@@ -39,12 +42,14 @@ export async function chat(
 
   if (!response.ok) {
     const errBody = await response.text();
+    logger.error('LLM request failed', { status: response.status, body: errBody, model, baseUrl });
     throw new Error(
       `LLM request failed (${response.status}): ${errBody}`,
     );
   }
 
   const data = (await response.json()) as OllamaChatResponse;
+  logger.debug('LLM response', { contentLen: data.message?.content?.length || 0 });
   return data.message?.content || '';
 }
 
@@ -52,6 +57,8 @@ export async function summarizeForMemory(
   rawText: string,
   folderTree: string,
 ): Promise<SummarizeResult> {
+  logger.info('Summarizing memory', { textLen: rawText.length });
+
   const prompt = `You are a memory management assistant. Given raw text the user wants to save as a memory, produce a JSON object with these fields:
 
 1. "title": A concise title (1-8 words)
@@ -91,16 +98,21 @@ Return ONLY valid JSON, no other text.`;
   jsonText = jsonText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
 
   try {
-    return JSON.parse(jsonText) as SummarizeResult;
+    const result = JSON.parse(jsonText) as SummarizeResult;
+    logger.info('Summary generated', { title: result.title, path: result.suggested_path, tags: result.tags });
+    return result;
   } catch {
     const match = jsonText.match(/\{[\s\S]*\}/);
     if (match) {
       try {
-        return JSON.parse(match[0]) as SummarizeResult;
+        const result = JSON.parse(match[0]) as SummarizeResult;
+        logger.info('Summary generated (fallback parse)', { title: result.title });
+        return result;
       } catch {
         /* fall through */
       }
     }
+    logger.error('Failed to parse LLM summarization response', { response: response.substring(0, 500) });
     throw new Error(
       `Failed to parse LLM response as JSON. Response: ${response.substring(0, 500)}`,
     );
@@ -134,6 +146,7 @@ Respond with JSON: {"link": true/false, "reason": "brief reason"}`;
   try {
     let jsonText = response.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
     const result = JSON.parse(jsonText) as { link: boolean; reason: string };
+    logger.debug('Cross-link decision', { candidatePath, link: result.link, reason: result.reason });
     return { link: !!result.link, reason: result.reason || '' };
   } catch {
     return { link: false, reason: 'failed to parse LLM response' };

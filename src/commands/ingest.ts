@@ -10,8 +10,8 @@ interface IngestOptions {
   path?: string;
   tags?: string;
   dryRun?: boolean;
-  noCrossRef?: boolean;
-  noGit?: boolean;
+  crossRef?: boolean; // commander: --no-cross-ref makes this false
+  git?: boolean;      // commander: --no-git makes this false
 }
 
 export async function ingestCommand(
@@ -59,7 +59,7 @@ export async function ingestCommand(
   });
   console.log(chalk.green(`✓ Created ${memory.path}`));
 
-  if (!options.noCrossRef) {
+  if (options.crossRef !== false) {
     console.log(chalk.dim('Finding related memories...'));
     const relatedSearches = await searchMemories(summary.summary, { limit: 5 });
 
@@ -105,7 +105,7 @@ export async function ingestCommand(
   await upsertMemory(memory);
   console.log(chalk.green('✓ Indexed in Qdrant'));
 
-  if (!options.noGit) {
+  if (options.git !== false) {
     try {
       const hash = await commit(`memory: add "${memory.title}"`);
       if (hash) {

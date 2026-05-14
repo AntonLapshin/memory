@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import simpleGit, { type SimpleGit } from 'simple-git';
-import { getMemoryRoot, loadConfig } from './config.js';
+import { getMemoryRoot, getVaultRoot, loadConfig } from './config.js';
+import { logger } from './logger.js';
 import type { GitStatus, PullResult } from './types.js';
 
 function getGit(): SimpleGit {
@@ -16,6 +17,7 @@ export async function initGitRepo(): Promise<boolean> {
 
   const git = simpleGit(root);
   await git.init();
+  logger.info('Initialized git repo', { root });
   return true;
 }
 
@@ -31,6 +33,7 @@ export async function setRemote(remoteUrl: string): Promise<void> {
     } else {
       await git.addRemote('origin', remoteUrl);
     }
+    logger.info('Set git remote', { remoteUrl });
   } catch (e) {
     if ((e as Error).message.includes('not a git repository')) {
       await initGitRepo();
@@ -50,6 +53,7 @@ export async function cloneOrPull(remoteUrl: string): Promise<void> {
     const config = loadConfig();
     try {
       await git.pull('origin', config.git.branch || 'main');
+      logger.info('Pulled from remote', { remoteUrl });
     } catch (e) {
       if ((e as Error).message.includes('no such remote')) {
         await git.addRemote('origin', remoteUrl);
@@ -66,6 +70,7 @@ export async function cloneOrPull(remoteUrl: string): Promise<void> {
     const tempDir = path.join(root, '_temp_clone');
     const git = simpleGit();
     await git.clone(remoteUrl, tempDir);
+    logger.info('Cloned remote repo', { remoteUrl });
 
     const entries = fs.readdirSync(tempDir);
     for (const entry of entries) {
@@ -88,15 +93,33 @@ export async function cloneOrPull(remoteUrl: string): Promise<void> {
 
 export async function commit(message: string): Promise<string | null> {
   const git = getGit();
+  const vault = getVaultRoot();
 
   const status = await git.status();
-  if (status.isClean()) return null;
 
-  await git.add('*.md');
-  await git.add('**/*.md');
-  await git.add('config.json');
+  // Check if there are any changes in the vault or config
+  const hasVaultChanges = [
+    ...status.modified,
+    ...status.created,
+    ...status.not_added,
+  ].some((f) => f.startsWith('vault/') || f.startsWith('vault\\') || f === 'config.json');
+
+  if (!hasVaultChanges && Object.keys(status.staged).length === 0) {
+    logger.debug('No changes to commit');
+    return null;
+  }
+
+  // Stage vault files and config
+  try {
+    await git.add('vault/');
+    await git.add('config.json');
+    await git.add('.gitignore');
+  } catch (e) {
+    logger.warn('Git add warning', { error: (e as Error).message });
+  }
 
   const result = await git.commit(message);
+  logger.info('Committed', { message, hash: result.commit?.substring(0, 7) });
   return result.commit || null;
 }
 
@@ -113,6 +136,7 @@ export async function pull(): Promise<PullResult> {
     to: after,
   });
 
+  logger.info('Pull complete', { commits: diff.total });
   return {
     pulled: diff.total || 0,
     summary: diff.all?.map((c) => c.message).join('\n') || 'No changes',
@@ -123,6 +147,7 @@ export async function push(): Promise<string> {
   const config = loadConfig();
   const git = getGit();
   const result = await git.push('origin', config.git.branch || 'main');
+  logger.info('Push complete');
   return result.pushed?.[0]?.alreadyUpdated
     ? 'Already up to date'
     : 'Pushed successfully';

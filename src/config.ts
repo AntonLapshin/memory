@@ -10,6 +10,10 @@ export function getMemoryRoot(): string {
   return path.join(os.homedir(), MEMORY_DIR);
 }
 
+export function getVaultRoot(): string {
+  return path.join(getMemoryRoot(), 'vault');
+}
+
 export function getConfigPath(): string {
   return path.join(getMemoryRoot(), CONFIG_FILE);
 }
@@ -35,6 +39,10 @@ export function getDefaultConfig(): Config {
       model: 'nomic-embed-text',
       baseUrl: 'http://localhost:11434',
       dimensions: 768,
+    },
+    logging: {
+      enabled: true,
+      level: 'info',
     },
   };
 }
@@ -68,8 +76,15 @@ export function isInitialized(): boolean {
   return fs.existsSync(getConfigPath());
 }
 
+export function ensureVault(): void {
+  const vault = getVaultRoot();
+  if (!fs.existsSync(vault)) {
+    fs.mkdirSync(vault, { recursive: true });
+  }
+}
+
 export function getAllMemoryFiles(): string[] {
-  const root = getMemoryRoot();
+  const root = getVaultRoot();
   if (!fs.existsSync(root)) return [];
 
   const files: string[] = [];
@@ -77,7 +92,7 @@ export function getAllMemoryFiles(): string[] {
   function walk(dir: string): void {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
-      if (entry.name.startsWith('.') && entry.name !== '.memory') continue;
+      if (entry.name.startsWith('.')) continue;
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         walk(fullPath);

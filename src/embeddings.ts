@@ -1,8 +1,11 @@
 import { loadConfig } from './config.js';
+import { logger } from './logger.js';
 
 export async function generateEmbedding(text: string): Promise<number[]> {
   const config = loadConfig();
   const { baseUrl, model } = config.embedding;
+
+  logger.debug('Generating embedding', { model, textLen: text.length });
 
   const response = await fetch(`${baseUrl}/api/embed`, {
     method: 'POST',
@@ -12,13 +15,18 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 
   if (!response.ok) {
     const body = await response.text();
+    logger.error('Embedding request failed', { status: response.status, body, model, baseUrl });
     throw new Error(
       `Embedding request failed (${response.status}): ${body}`,
     );
   }
 
   const data = (await response.json()) as { embeddings?: number[][]; embedding?: number[] };
-  return data.embeddings?.[0] || data.embedding || [];
+  const result = data.embeddings?.[0] || data.embedding || [];
+
+  logger.debug('Embedding generated', { dimensions: result.length });
+
+  return result;
 }
 
 export async function generateEmbeddingsBatch(

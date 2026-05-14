@@ -1,5 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { loadConfig } from './config.js';
+import { configureLogger } from './logger.js';
 import { initCommand } from './commands/init.js';
 import { ingestCommand } from './commands/ingest.js';
 import { retrieveCommand } from './commands/retrieve.js';
@@ -11,6 +13,14 @@ import { importCommand, exportCommand } from './commands/import-export.js';
 import { configCommand } from './commands/config-cmd.js';
 
 export function run(): void {
+  // Initialize logger from config
+  try {
+    const cfg = loadConfig();
+    configureLogger(cfg.logging);
+  } catch {
+    // config might not exist yet (e.g. before init)
+  }
+
   const program = new Command();
 
   program

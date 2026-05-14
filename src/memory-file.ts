@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import matter from 'gray-matter';
 import slugify from 'slugify';
-import { getMemoryRoot } from './config.js';
+import { getVaultRoot } from './config.js';
+import { logger } from './logger.js';
 import type { MemoryFile, WriteMemoryData } from './types.js';
 
 export function slugifyFilename(str: string): string {
@@ -22,12 +23,15 @@ export function normalizePath(p: string): string {
 }
 
 export function getAbsolutePath(relativePath: string): string {
-  return path.join(getMemoryRoot(), relativePath);
+  return path.join(getVaultRoot(), relativePath);
 }
 
 export function readMemoryFile(relativePath: string): MemoryFile | null {
   const fullPath = getAbsolutePath(relativePath);
-  if (!fs.existsSync(fullPath)) return null;
+  if (!fs.existsSync(fullPath)) {
+    logger.debug('Memory file not found', { path: relativePath });
+    return null;
+  }
 
   const raw = fs.readFileSync(fullPath, 'utf-8');
   const parsed = matter(raw);
@@ -55,6 +59,7 @@ export function writeMemoryFile(
   const dir = path.dirname(fullPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
+    logger.debug('Created directory', { dir });
   }
 
   let created = now;
@@ -98,6 +103,7 @@ export function writeMemoryFile(
 
   const fullContent = frontmatter + '\n\n' + body + '\n';
   fs.writeFileSync(fullPath, fullContent, 'utf-8');
+  logger.info('Wrote memory file', { path: normalized, title: data.title });
 
   return {
     path: normalized,
@@ -117,11 +123,17 @@ export function addRelatedLink(
   linkedTitle: string,
 ): void {
   const memory = readMemoryFile(relativePath);
-  if (!memory) return;
+  if (!memory) {
+    logger.warn('Cannot add related link: memory not found', { path: relativePath });
+    return;
+  }
 
   const linkLine = `- [[${linkedTitle}]]`;
 
-  if (memory.raw.includes(`[[${linkedTitle}]]`)) return;
+  if (memory.raw.includes(`[[${linkedTitle}]]`)) {
+    logger.debug('Related link already exists', { path: relativePath, linkedTitle });
+    return;
+  }
 
   let updatedRaw = memory.raw;
   const relatedMatch = updatedRaw.match(
@@ -152,6 +164,7 @@ export function addRelatedLink(
 
   const fullPath = getAbsolutePath(relativePath);
   fs.writeFileSync(fullPath, updatedRaw, 'utf-8');
+  logger.info('Added related link', { from: relativePath, to: linkedTitle });
 }
 
 export function getWikiLinks(relativePath: string): string[] {

@@ -1,15 +1,19 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import {
   getMemoryRoot,
+  getVaultRoot,
   getConfigPath,
   getDefaultConfig,
   saveConfig,
   getAllMemoryFiles,
+  ensureVault,
 } from '../config.js';
 import { cloneOrPull, initGitRepo, setRemote } from '../git.js';
 import { ensureCollection, rebuildIndex } from '../qdrant.js';
+import { configureLogger } from '../logger.js';
 
 export async function initCommand(): Promise<void> {
   console.log(chalk.bold.cyan('\n🧠 Memory — Setup Wizard\n'));
@@ -105,10 +109,40 @@ export async function initCommand(): Promise<void> {
       baseUrl: answers.embedBaseUrl || defaults.embedding.baseUrl,
       dimensions: 768,
     },
+    logging: {
+      enabled: true,
+      level: 'info' as const,
+    },
   };
 
+  // Set up directory structure
+  const memoryRoot = getMemoryRoot();
+  if (!fs.existsSync(memoryRoot)) {
+    fs.mkdirSync(memoryRoot, { recursive: true });
+  }
+
+  // Create vault directory
+  ensureVault();
+  console.log(chalk.green('✓ Vault directory created'));
+
+  // Create logs directory
+  const logsDir = path.join(memoryRoot, 'logs');
+  if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+  }
+  console.log(chalk.green('✓ Logs directory created'));
+
+  // Create .memory/.gitignore
+  const gitignorePath = path.join(memoryRoot, '.gitignore');
+  const gitignoreContent = '# Memory tool gitignore\nlogs/\n.obsidian/\n';
+  fs.writeFileSync(gitignorePath, gitignoreContent, 'utf-8');
+  console.log(chalk.green('✓ .gitignore created'));
+
+  // Initialize logger
+  configureLogger(config.logging);
+
   saveConfig(config);
-  console.log(chalk.green('\n✓ Config saved'));
+  console.log(chalk.green('✓ Config saved'));
 
   await initGitRepo();
   console.log(chalk.green('✓ Git repository initialized'));
@@ -146,6 +180,7 @@ export async function initCommand(): Promise<void> {
   const root = getMemoryRoot();
   console.log(chalk.bold.green('\n✨ Memory is ready!'));
   console.log(chalk.dim(`   Store: ${root}`));
+  console.log(chalk.dim(`   Vault: ${getVaultRoot()}`));
   console.log(chalk.dim(`   Config: ${getConfigPath()}`));
   console.log(chalk.dim(`   Qdrant: ${config.qdrant.url}/${config.qdrant.collection}`));
   console.log(chalk.dim(`   LLM: ${config.llm.model} @ ${config.llm.baseUrl}`));

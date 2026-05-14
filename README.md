@@ -55,7 +55,18 @@ Interactive wizard asks for:
 - Qdrant URL (default: `http://localhost:6333`)
 - Ollama URLs and model names for LLM + embeddings
 
-Creates `~/.memory/` with config, git repo, and indexes any existing files.
+Creates `~/.memory/` with the following structure:
+```
+~/.memory/
+├── config.json          # Tool configuration
+├── .gitignore            # Ignores logs/, .obsidian/
+├── vault/                # All .md memory files live here
+│   ├── personal/
+│   ├── work/
+│   └── learning/
+└── logs/                 # Daily log files (when enabled)
+    └── memory-2025-01-15.log
+```
 
 ### Save a Memory
 
@@ -227,10 +238,11 @@ The LLM determines the exact path during ingestion based on content. The folder 
 
 ### Persistence
 
-- **Source of truth**: `.md` files in git (`~/.memory/`)
+- **Source of truth**: `.md` files in git (`~/.memory/vault/`)
 - **Qdrant**: Derived index, fully rebuildable via `memory index`
+- **Dimension auto-detection**: Embedding dimensions are detected automatically and the Qdrant collection is recreated if they change
 - **No snapshots in git** — each `.md` stores its own summary in frontmatter
-- Re-indexing reads summaries from files, re-embeds, and re-upserts
+- **Logging**: All operations are logged to `~/.memory/logs/memory-YYYY-MM-DD.log` when enabled
 
 ## Configuration
 
@@ -257,6 +269,10 @@ View with `memory config`. Edit with `memory config --set key=value`.
     "model": "nomic-embed-text",
     "baseUrl": "http://localhost:11434",
     "dimensions": 768
+  },
+  "logging": {
+    "enabled": true,
+    "level": "info"
   }
 }
 ```
