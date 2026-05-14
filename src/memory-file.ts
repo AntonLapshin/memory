@@ -71,7 +71,7 @@ export function writeMemoryFile(
       created = existing.created;
       if (!relatedSection) {
         const relatedMatch = existing.raw.match(
-          /## Related\s*\n([\s\S]*?)(?=\n## |\n---|$)/,
+          /## Related\s*\n(?:<!--[^>]*-->\s*\n)?([\s\S]*?)(?=\n## |\n---|$)/,
         );
         if (relatedMatch) {
           relatedSection = relatedMatch[1].trim();
@@ -91,6 +91,11 @@ export function writeMemoryFile(
   ].join('\n');
 
   let body = data.content.trim();
+
+  const relatedSplit = body.split(/\n## Related\b/);
+  if (relatedSplit.length > 1) {
+    body = relatedSplit[0].trimEnd();
+  }
 
   if (relatedSection) {
     body +=
@@ -128,12 +133,16 @@ export function addRelatedLink(
     return;
   }
 
-  const linkLine = `- [[${linkedTitle}]]`;
-
-  if (memory.raw.includes(`[[${linkedTitle}]]`)) {
-    logger.debug('Related link already exists', { path: relativePath, linkedTitle });
+  const linkedFullPath = getAbsolutePath(normalizePath(linkedPath));
+  if (!fs.existsSync(linkedFullPath)) {
+    logger.warn('Cannot add related link: linked memory not found on disk', {
+      from: relativePath,
+      linkedPath,
+    });
     return;
   }
+
+  const linkLine = `- [[${linkedTitle}]]`;
 
   let updatedRaw = memory.raw;
   const relatedMatch = updatedRaw.match(
@@ -141,11 +150,16 @@ export function addRelatedLink(
   );
 
   if (relatedMatch) {
+    const existingLinks = relatedMatch[1].trim();
+    if (existingLinks.includes(`[[${linkedTitle}]]`)) {
+      logger.debug('Related link already exists', { path: relativePath, linkedTitle });
+      return;
+    }
+
     const beforeRelated = updatedRaw.substring(0, relatedMatch.index!);
     const afterRelated = updatedRaw.substring(
       relatedMatch.index! + relatedMatch[0].length,
     );
-    const existingLinks = relatedMatch[1].trim();
     const newLinks = existingLinks
       ? existingLinks + '\n' + linkLine
       : linkLine;

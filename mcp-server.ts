@@ -367,7 +367,7 @@ function buildFolderTree(files: string[]): string {
   const tree = new Map<string, unknown>();
 
   for (const file of files) {
-    const parts = file.split('/');
+    const parts = file.replace(/\\/g, '/').split('/');
     let current = tree;
     for (let i = 0; i < Math.min(parts.length - 1, 3); i++) {
       if (!current.has(parts[i])) {
