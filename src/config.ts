@@ -31,7 +31,7 @@ export function getDefaultConfig(): Config {
     },
     llm: {
       provider: 'ollama',
-      model: 'llama3.2',
+      model: 'gemma4-e2b',
       baseUrl: 'http://localhost:11434',
     },
     embedding: {

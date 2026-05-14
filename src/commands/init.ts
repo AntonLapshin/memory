@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import {
@@ -14,6 +15,69 @@ import {
 import { cloneOrPull, initGitRepo, setRemote } from '../git.js';
 import { ensureCollection, rebuildIndex } from '../qdrant.js';
 import { configureLogger } from '../logger.js';
+
+function setupOpencodeConfig(): void {
+  const cwd = process.cwd();
+  const opencodePath = path.join(cwd, 'opencode.json');
+
+  const mcpEntry = {
+    memory: {
+      type: 'local',
+      command: ['mcp-memory'],
+      enabled: true,
+      timeout: 60000,
+    },
+  };
+
+  let config: Record<string, unknown> = {};
+  if (fs.existsSync(opencodePath)) {
+    try {
+      const existing = JSON.parse(fs.readFileSync(opencodePath, 'utf-8'));
+      if (typeof existing === 'object' && existing !== null) {
+        config = existing;
+      }
+    } catch {
+      console.log(chalk.yellow('⚠ opencode.json exists but is invalid JSON, overwriting'));
+    }
+  }
+
+  const existingMcp = (config.mcp as Record<string, unknown>) ?? {};
+  config.mcp = { ...mcpEntry, ...existingMcp };
+  config.$schema = config.$schema || 'https://opencode.ai/config.json';
+
+  fs.writeFileSync(opencodePath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
+  console.log(chalk.green('✓ opencode.json configured with MCP server'));
+}
+
+function setupAgentsMd(): void {
+  const cwd = process.cwd();
+  const agentsPath = path.join(cwd, 'AGENTS.md');
+
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const packageRoot = path.resolve(__dirname, '..', '..', '..');
+  const packageAgentsPath = path.join(packageRoot, 'AGENTS.md');
+
+  if (!fs.existsSync(packageAgentsPath)) {
+    console.log(chalk.yellow('⚠ Could not find AGENTS.md in package'));
+    return;
+  }
+
+  const memoryContent = fs.readFileSync(packageAgentsPath, 'utf-8');
+
+  if (fs.existsSync(agentsPath)) {
+    const existing = fs.readFileSync(agentsPath, 'utf-8');
+    if (existing.includes('# Memory Usage Guide for AI Agents')) {
+      console.log(chalk.dim('  AGENTS.md already has Memory guide, skipping'));
+      return;
+    }
+    fs.writeFileSync(agentsPath, memoryContent + '\n' + existing, 'utf-8');
+    console.log(chalk.green('✓ AGENTS.md prepended with Memory usage guide'));
+  } else {
+    fs.writeFileSync(agentsPath, memoryContent, 'utf-8');
+    console.log(chalk.green('✓ AGENTS.md created with Memory usage guide'));
+  }
+}
 
 export async function initCommand(): Promise<void> {
   console.log(chalk.bold.cyan('\n🧠 Memory — Setup Wizard\n'));
@@ -176,6 +240,9 @@ export async function initCommand(): Promise<void> {
     });
     console.log(`\n${chalk.green(`✓ Indexed ${indexed} memories${errors > 0 ? `, ${errors} errors` : ''}`)}`);
   }
+
+  setupOpencodeConfig();
+  setupAgentsMd();
 
   const root = getMemoryRoot();
   console.log(chalk.bold.green('\n✨ Memory is ready!'));
