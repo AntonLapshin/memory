@@ -142,7 +142,7 @@ export function addRelatedLink(
     return;
   }
 
-  const linkLine = `- [[${linkedTitle}]]`;
+  const linkLine = `- [[${linkedPath.replace(/\.md$/, '')}]]`;
 
   let updatedRaw = memory.raw;
   const relatedMatch = updatedRaw.match(
@@ -151,8 +151,8 @@ export function addRelatedLink(
 
   if (relatedMatch) {
     const existingLinks = relatedMatch[1].trim();
-    if (existingLinks.includes(`[[${linkedTitle}]]`)) {
-      logger.debug('Related link already exists', { path: relativePath, linkedTitle });
+    if (existingLinks.includes(`[[${linkedPath.replace(/\.md$/, '')}]]`)) {
+      logger.debug('Related link already exists', { path: relativePath, linkedPath });
       return;
     }
 
