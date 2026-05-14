@@ -1,7 +1,13 @@
 import chalk from 'chalk';
 import { push, getStatus } from '../git.js';
+import { isLocalMode } from '../config.js';
 
 export async function pushCommand(): Promise<void> {
+  if (isLocalMode()) {
+    console.log(chalk.yellow('Local mode: no remote to push to. Changes are managed by your project repo.'));
+    return;
+  }
+
   console.log(chalk.cyan('\nPushing to remote...'));
 
   try {

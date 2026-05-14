@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import simpleGit, { type SimpleGit } from 'simple-git';
-import { getMemoryRoot, getVaultRoot, loadConfig } from './config.js';
+import { getMemoryRoot, getVaultRoot, loadConfig, isLocalMode } from './config.js';
 import { logger } from './logger.js';
 import type { GitStatus, PullResult } from './types.js';
 
@@ -92,6 +92,8 @@ export async function cloneOrPull(remoteUrl: string): Promise<void> {
 }
 
 export async function commit(message: string): Promise<string | null> {
+  if (isLocalMode()) return null;
+
   const git = getGit();
   const vault = getVaultRoot();
 
@@ -124,6 +126,10 @@ export async function commit(message: string): Promise<string | null> {
 }
 
 export async function pull(): Promise<PullResult> {
+  if (isLocalMode()) {
+    throw new Error('Local mode: no remote to pull from. Changes are managed by your project repo.');
+  }
+
   const config = loadConfig();
   const git = getGit();
 
@@ -144,6 +150,10 @@ export async function pull(): Promise<PullResult> {
 }
 
 export async function push(): Promise<string> {
+  if (isLocalMode()) {
+    throw new Error('Local mode: no remote to push to. Changes are managed by your project repo.');
+  }
+
   const config = loadConfig();
   const git = getGit();
   const result = await git.push('origin', config.git.branch || 'main');
@@ -154,6 +164,16 @@ export async function push(): Promise<string> {
 }
 
 export async function getStatus(): Promise<GitStatus> {
+  if (isLocalMode()) {
+    return {
+      remote: '(local mode)',
+      branch: 'n/a',
+      unpushed: 0,
+      changes: false,
+      files: [],
+    };
+  }
+
   const config = loadConfig();
   const git = getGit();
 
@@ -177,6 +197,8 @@ export async function getStatus(): Promise<GitStatus> {
 }
 
 export async function getCommitCount(): Promise<number> {
+  if (isLocalMode()) return 0;
+
   try {
     const git = getGit();
     const log = await git.log();

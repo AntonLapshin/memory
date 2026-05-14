@@ -6,8 +6,28 @@ import type { Config } from './types.js';
 const MEMORY_DIR = '.memory';
 const CONFIG_FILE = 'config.json';
 
+let _memoryRoot: string | null = null;
+
+export function setMemoryRoot(root: string): void {
+  _memoryRoot = root;
+}
+
 export function getMemoryRoot(): string {
-  return path.join(os.homedir(), MEMORY_DIR);
+  if (_memoryRoot) return _memoryRoot;
+
+  const localRoot = path.join(process.cwd(), MEMORY_DIR);
+  const localConfig = path.join(localRoot, CONFIG_FILE);
+  if (fs.existsSync(localConfig)) {
+    _memoryRoot = localRoot;
+    return _memoryRoot;
+  }
+
+  _memoryRoot = path.join(os.homedir(), MEMORY_DIR);
+  return _memoryRoot;
+}
+
+export function isLocalMode(): boolean {
+  return !getMemoryRoot().startsWith(os.homedir());
 }
 
 export function getVaultRoot(): string {
@@ -31,7 +51,7 @@ export function getDefaultConfig(): Config {
     },
     llm: {
       provider: 'ollama',
-      model: 'gemma4-e2b',
+      model: 'gemma4:e2b',
       baseUrl: 'http://localhost:11434',
     },
     embedding: {

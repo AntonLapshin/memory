@@ -35,9 +35,10 @@ export function run(): void {
     .description(
       'Initialize memory in wizard mode. Creates .memory/ and configures everything.',
     )
-    .action(async () => {
+    .option('-g, --global', 'Initialize globally in ~/.memory (default: local in ./.memory)')
+    .action(async (options) => {
       try {
-        await initCommand();
+        await initCommand({ global: options.global === true });
       } catch (e) {
         console.error(chalk.red(`Error: ${(e as Error).message}`));
         process.exit(1);

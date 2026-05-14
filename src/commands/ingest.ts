@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { getAllMemoryFiles } from '../config.js';
+import { getAllMemoryFiles, isLocalMode } from '../config.js';
 import { summarizeForMemory, shouldCrossLink } from '../llm.js';
 import { writeMemoryFile, addRelatedLink, readMemoryFile } from '../memory-file.js';
 import { findDuplicates, searchMemories, upsertMemory } from '../qdrant.js';
@@ -106,7 +106,7 @@ export async function ingestCommand(
   await upsertMemory(updatedMemory);
   console.log(chalk.green('✓ Indexed in Qdrant'));
 
-  if (options.git !== false) {
+  if (options.git !== false && !isLocalMode()) {
     try {
       const hash = await commit(`memory: add "${memory.title}"`);
       if (hash) {

@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { getStatus, getCommitCount } from '../git.js';
-import { getAllMemoryFiles } from '../config.js';
+import { getAllMemoryFiles, isLocalMode } from '../config.js';
 import { getAllTags } from '../qdrant.js';
 
 export async function statusCommand(): Promise<void> {
@@ -11,6 +11,21 @@ export async function statusCommand(): Promise<void> {
     const totalFiles = getAllMemoryFiles().length;
     const commitCount = await getCommitCount();
     const tags = await getAllTags();
+
+    if (isLocalMode()) {
+      console.log(chalk.white('Mode:     '), chalk.dim('local (project-scoped)'));
+      console.log(chalk.white('Memories: '), chalk.bold(String(totalFiles)));
+      console.log(
+        chalk.white('Tags:     '),
+        chalk.dim(
+          tags.slice(0, 10).join(', ') +
+            (tags.length > 10 ? ` +${tags.length - 10} more` : ''),
+        ),
+      );
+      console.log(chalk.dim('\n  Git is managed by the project repository.'));
+      console.log();
+      return;
+    }
 
     console.log(chalk.white('Repository:'), chalk.dim(status.remote || '(local only)'));
     console.log(chalk.white('Branch:    '), chalk.dim(status.branch));

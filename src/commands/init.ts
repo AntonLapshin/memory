@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
@@ -11,6 +12,7 @@ import {
   saveConfig,
   getAllMemoryFiles,
   ensureVault,
+  setMemoryRoot,
 } from '../config.js';
 import { cloneOrPull, initGitRepo, setRemote } from '../git.js';
 import { ensureCollection, rebuildIndex } from '../qdrant.js';
@@ -79,10 +81,22 @@ function setupAgentsMd(): void {
   }
 }
 
-export async function initCommand(): Promise<void> {
-  console.log(chalk.bold.cyan('\n🧠 Memory — Setup Wizard\n'));
+export async function initCommand(options: { global: boolean }): Promise<void> {
+  const global = options.global;
 
-  if (fs.existsSync(getConfigPath())) {
+  if (global) {
+    console.log(chalk.bold.cyan('\n🧠 Memory — Global Setup Wizard\n'));
+  } else {
+    console.log(chalk.bold.cyan('\n🧠 Memory — Local Setup Wizard\n'));
+    setMemoryRoot(path.join(process.cwd(), '.memory'));
+    console.log(chalk.dim(`  Project-scoped: ${getMemoryRoot()}`));
+  }
+
+  const configPath = global
+    ? path.join(os.homedir(), '.memory', 'config.json')
+    : path.join(process.cwd(), '.memory', 'config.json');
+
+  if (fs.existsSync(configPath)) {
     const { overwrite } = await inquirer.prompt<{ overwrite: boolean }>([
       {
         type: 'confirm',
@@ -108,12 +122,12 @@ export async function initCommand(): Promise<void> {
     embedBaseUrl: string;
     embedModel: string;
   }>([
-    {
-      type: 'input',
-      name: 'remoteUrl',
+    ...(global ? [{
+      type: 'input' as const,
+      name: 'remoteUrl' as const,
       message: 'GitHub repository URL (or leave empty for local-only):',
       default: '',
-    },
+    }] : []),
     {
       type: 'input',
       name: 'qdrantUrl',
@@ -155,7 +169,7 @@ export async function initCommand(): Promise<void> {
   const config = {
     version: 1,
     git: {
-      remote: answers.remoteUrl || '',
+      remote: (global ? answers.remoteUrl : '') || '',
       branch: 'main' as const,
     },
     qdrant: {
@@ -208,10 +222,14 @@ export async function initCommand(): Promise<void> {
   saveConfig(config);
   console.log(chalk.green('✓ Config saved'));
 
-  await initGitRepo();
-  console.log(chalk.green('✓ Git repository initialized'));
+  if (global) {
+    await initGitRepo();
+    console.log(chalk.green('✓ Git repository initialized'));
+  } else {
+    console.log(chalk.dim('  Local mode — skipping git initialization (managed by project repo)'));
+  }
 
-  if (answers.remoteUrl) {
+  if (global && answers.remoteUrl) {
     try {
       await setRemote(answers.remoteUrl);
       await cloneOrPull(answers.remoteUrl);
@@ -246,6 +264,7 @@ export async function initCommand(): Promise<void> {
 
   const root = getMemoryRoot();
   console.log(chalk.bold.green('\n✨ Memory is ready!'));
+  console.log(chalk.dim(`   Mode: ${global ? 'global' : 'local (project-scoped)'}`));
   console.log(chalk.dim(`   Store: ${root}`));
   console.log(chalk.dim(`   Vault: ${getVaultRoot()}`));
   console.log(chalk.dim(`   Config: ${getConfigPath()}`));
@@ -255,5 +274,7 @@ export async function initCommand(): Promise<void> {
   console.log(chalk.cyan('  Next steps:'));
   console.log(chalk.dim('    memory ingest "something to remember"'));
   console.log(chalk.dim('    memory retrieve "search query"'));
-  console.log(chalk.dim('    memory status'));
+  if (global) {
+    console.log(chalk.dim('    memory status'));
+  }
 }
