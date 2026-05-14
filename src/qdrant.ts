@@ -1,9 +1,15 @@
+import crypto from 'node:crypto';
 import { QdrantClient } from '@qdrant/js-client-rest';
 import { loadConfig, getAllMemoryFiles } from './config.js';
 import { readMemoryFile } from './memory-file.js';
 import { generateEmbedding } from './embeddings.js';
 import { logger } from './logger.js';
 import type { MemoryFile, SearchResult, IndexResult } from './types.js';
+
+function pathToPointId(p: string): string {
+  const hash = crypto.createHash('sha256').update(p).digest('hex').substring(0, 32);
+  return `${hash.substring(0, 8)}-${hash.substring(8, 12)}-${hash.substring(12, 16)}-${hash.substring(16, 20)}-${hash.substring(20, 32)}`;
+}
 
 let client: QdrantClient | null = null;
 let collectionEnsured = false;
@@ -110,7 +116,7 @@ export async function upsertMemory(memory: MemoryFile): Promise<string> {
 
   await detectDimensions(embedding);
 
-  const id = memory.path;
+  const id = pathToPointId(memory.path);
   try {
     await c.upsert(config.qdrant.collection, {
       wait: true,
@@ -129,9 +135,9 @@ export async function upsertMemory(memory: MemoryFile): Promise<string> {
         },
       ],
     });
-    logger.info('Upserted memory', { id, dimensions: embedding.length });
+    logger.info('Upserted memory', { path: memory.path, id, dimensions: embedding.length });
   } catch (e) {
-    logger.error('Qdrant upsert failed', { id, error: (e as Error).message });
+    logger.error('Qdrant upsert failed', { path: memory.path, id, error: (e as Error).message });
     throw new Error(`Failed to upsert memory to Qdrant: ${(e as Error).message}`);
   }
 
@@ -203,7 +209,7 @@ export async function deleteMemory(relativePath: string): Promise<void> {
   try {
     await c.delete(config.qdrant.collection, {
       wait: true,
-      points: [relativePath],
+      points: [pathToPointId(relativePath)],
     });
   } catch (e) {
     logger.error('Qdrant delete failed', { path: relativePath, error: (e as Error).message });
