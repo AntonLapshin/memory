@@ -51,6 +51,30 @@ function setupOpencodeConfig(): void {
   console.log(chalk.green('✓ opencode.json configured with MCP server'));
 }
 
+function setupClaudeConfig(): void {
+  const cwd = process.cwd();
+  const mcpPath = path.join(cwd, '.mcp.json');
+
+  let config: Record<string, unknown> = {};
+
+  if (fs.existsSync(mcpPath)) {
+    try {
+      const existing = JSON.parse(fs.readFileSync(mcpPath, 'utf-8'));
+      if (typeof existing === 'object' && existing !== null) {
+        config = existing;
+      }
+    } catch {
+      console.log(chalk.yellow('⚠ .mcp.json exists but is invalid JSON, overwriting'));
+    }
+  }
+
+  const existingServers = (config.mcpServers as Record<string, unknown>) ?? {};
+  config.mcpServers = { memory: { command: 'mcp-memory' }, ...existingServers };
+
+  fs.writeFileSync(mcpPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
+  console.log(chalk.green('✓ .mcp.json configured with MCP server'));
+}
+
 function setupAgentsMd(): void {
   const cwd = process.cwd();
   const agentsPath = path.join(cwd, 'AGENTS.md');
@@ -259,7 +283,24 @@ export async function initCommand(options: { global: boolean }): Promise<void> {
     console.log(`\n${chalk.green(`✓ Indexed ${indexed} memories${errors > 0 ? `, ${errors} errors` : ''}`)}`);
   }
 
-  setupOpencodeConfig();
+  const { clientTarget } = await inquirer.prompt<{ clientTarget: 'opencode' | 'claude' }>([
+    {
+      type: 'list',
+      name: 'clientTarget',
+      message: 'Which AI client are you configuring MCP for?',
+      choices: [
+        { name: 'OpenCode', value: 'opencode' },
+        { name: 'Claude', value: 'claude' },
+      ],
+    },
+  ]);
+
+  if (clientTarget === 'claude') {
+    setupClaudeConfig();
+  } else {
+    setupOpencodeConfig();
+  }
+
   setupAgentsMd();
 
   const root = getMemoryRoot();
