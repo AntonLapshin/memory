@@ -10,7 +10,8 @@
   },
   "files": [
     "dist/",
-    "AGENTS.md"
+    "AGENTS.md",
+    "commands/"
   ],
   "scripts": {
     "build": "tsc",

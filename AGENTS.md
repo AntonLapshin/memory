@@ -69,6 +69,10 @@ You access it through MCP tools.
 | `memory_ingest` | Save new facts, decisions, or knowledge |
 | `memory_list_tags` | Explore available domains and categories |
 | `memory_list_recent` | Get context on recent activity |
+| `memory_list_all` | Get a complete inventory of all memories for analysis |
+| `memory_delete` | Remove a false, outdated, or duplicate memory (auto-cleans references) |
+| `memory_move` | Move/rename a memory to a better path (auto-updates all references) |
+| `memory_clear_collection` | Wipe and recreate the Qdrant index before a full re-index |
 
 ## Examples
 
@@ -121,3 +125,22 @@ The folder structure follows: `{domain}/{category}/{subcategory}/{file}.md`
 
 The LLM determines the exact path automatically during ingestion
 based on the content. You don't need to specify it.
+
+## Vault Maintenance: `/memory-dream` and `/memory-evaluate`
+
+Use the `/memory-dream` slash command to perform a quality pass over the entire memory vault.
+It scans all memories for:
+
+- **Duplicates** — same fact/event stored in multiple files
+- **Contradictions** — conflicting information between memories
+- **Folder placement** — memories in wrong domain/category paths
+- **Broken links** — `[[wiki links]]` pointing to non-existent files
+- **Content quality** — missing summaries, tags, or formatting issues
+- **Staleness** — outdated or superseded information
+
+The command walks through discovery → analysis → user confirmation → execution → re-index.
+Run `/memory-dream` periodically to keep the vault clean and well-structured.
+
+Use `/memory-evaluate` to get a scored health report (0-100) of the vault without making changes.
+It produces a detailed markdown report at `.memory/reports/evaluate-YYYY-MM-DD.md`.
+Run it before and after `/memory-dream` to measure improvement.

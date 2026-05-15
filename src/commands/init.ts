@@ -119,6 +119,45 @@ function setupAgentsMd(target: 'opencode' | 'claude'): void {
   }
 }
 
+function setupCommands(target: 'opencode' | 'claude'): void {
+  const cwd = process.cwd();
+
+  const commandsDir =
+    target === 'claude'
+      ? path.join(cwd, '.claude', 'commands')
+      : path.join(cwd, '.opencode', 'command');
+
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const packageRoot = path.resolve(__dirname, '..', '..', '..');
+  const sourceCommandsDir = path.join(packageRoot, 'commands');
+
+  if (!fs.existsSync(sourceCommandsDir)) {
+    console.log(chalk.yellow('⚠ Could not find commands directory in package'));
+    return;
+  }
+
+  if (!fs.existsSync(commandsDir)) {
+    fs.mkdirSync(commandsDir, { recursive: true });
+  }
+
+  const commandFiles = fs.readdirSync(sourceCommandsDir).filter((f) => f.endsWith('.md'));
+  const label = target === 'claude' ? '.claude/commands/' : '.opencode/command/';
+
+  for (const file of commandFiles) {
+    const src = path.join(sourceCommandsDir, file);
+    const dest = path.join(commandsDir, file);
+
+    if (fs.existsSync(dest)) {
+      console.log(chalk.dim(`  ${label}${file} already exists, skipping`));
+      continue;
+    }
+
+    fs.copyFileSync(src, dest);
+    console.log(chalk.green(`✓ ${label}${file} installed`));
+  }
+}
+
 export async function initCommand(options: { global: boolean }): Promise<void> {
   const global = options.global;
 
@@ -316,6 +355,8 @@ export async function initCommand(options: { global: boolean }): Promise<void> {
   }
 
   setupAgentsMd(clientTarget);
+
+  setupCommands(clientTarget);
 
   const root = getMemoryRoot();
   console.log(chalk.bold.green('\n✨ Memory is ready!'));

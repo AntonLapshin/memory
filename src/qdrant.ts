@@ -280,6 +280,24 @@ export async function getRecentMemories(limit = 10): Promise<SearchResult[]> {
   }
 }
 
+export async function clearCollection(): Promise<void> {
+  logger.info('Clearing Qdrant collection');
+  const config = loadConfig();
+  const c = getClient();
+  const { collection } = config.qdrant;
+
+  try {
+    await c.deleteCollection(collection);
+    logger.info('Deleted Qdrant collection', { collection });
+  } catch {
+    // collection might not exist
+  }
+
+  resetCollectionCache();
+  await ensureCollection();
+  logger.info('Qdrant collection recreated', { collection });
+}
+
 export async function rebuildIndex(
   onProgress?: (done: number, total: number) => void,
 ): Promise<IndexResult> {

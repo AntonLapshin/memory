@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import matter from 'gray-matter';
 import slugify from 'slugify';
-import { getVaultRoot } from './config.js';
+import { getVaultRoot, getAllMemoryFiles } from './config.js';
 import { logger } from './logger.js';
 import type { MemoryFile, WriteMemoryData } from './types.js';
 
@@ -187,4 +187,103 @@ export function getWikiLinks(relativePath: string): string[] {
 
   const matches = memory.raw.matchAll(/\[\[([^\]]+)\]\]/g);
   return [...matches].map((m) => m[1]);
+}
+
+export function removeRelatedLink(fromPath: string, linkedPath: string): boolean {
+  const memory = readMemoryFile(fromPath);
+  if (!memory) return false;
+
+  const normalized = normalizePath(linkedPath);
+  const linkRef = normalized.replace(/\.md$/, '');
+  const linkLine = `- [[${linkRef}]]`;
+
+  if (!memory.raw.includes(linkLine)) return false;
+
+  const updatedRaw = memory.raw
+    .split('\n')
+    .filter((line) => line.trim() !== linkLine)
+    .join('\n');
+
+  const fullPath = getAbsolutePath(fromPath);
+  fs.writeFileSync(fullPath, updatedRaw, 'utf-8');
+  logger.info('Removed related link', { from: fromPath, linked: linkRef });
+  return true;
+}
+
+export function findReferencingFiles(targetPath: string): string[] {
+  const allFiles = getAllMemoryFiles();
+  const normalized = normalizePath(targetPath);
+  const ref = normalized.replace(/\.md$/, '');
+  const referencing: string[] = [];
+
+  for (const file of allFiles) {
+    if (normalizePath(file) === normalized) continue;
+    const memory = readMemoryFile(file);
+    if (!memory) continue;
+
+    const linkLine = `- [[${ref}]]`;
+    if (memory.raw.includes(linkLine)) {
+      referencing.push(file);
+      continue;
+    }
+
+    const bodyLinks = memory.content.matchAll(/\[\[([^\]]+)\]\]/g);
+    for (const match of bodyLinks) {
+      if (match[1] === ref) {
+        referencing.push(file);
+        break;
+      }
+    }
+  }
+
+  return referencing;
+}
+
+export function replaceAllReferences(
+  oldPath: string,
+  newPath: string,
+): number {
+  const allFiles = getAllMemoryFiles();
+  const oldRef = normalizePath(oldPath).replace(/\.md$/, '');
+  const newRef = normalizePath(newPath).replace(/\.md$/, '');
+  let changed = 0;
+
+  for (const file of allFiles) {
+    const fullPath = getAbsolutePath(file);
+    let raw = fs.readFileSync(fullPath, 'utf-8');
+
+    if (!raw.includes(oldRef)) continue;
+
+    const updated = raw.replaceAll(oldRef, newRef);
+    if (updated !== raw) {
+      fs.writeFileSync(fullPath, updated, 'utf-8');
+      changed++;
+      logger.info('Replaced references', { file, oldRef, newRef });
+    }
+  }
+
+  return changed;
+}
+
+export function deleteMemoryFile(relativePath: string): boolean {
+  const normalized = normalizePath(relativePath);
+  const fullPath = getAbsolutePath(normalized);
+
+  if (!fs.existsSync(fullPath)) return false;
+
+  fs.unlinkSync(fullPath);
+  logger.info('Deleted memory file', { path: normalized });
+
+  const dir = path.dirname(fullPath);
+  try {
+    const entries = fs.readdirSync(dir);
+    if (entries.length === 0) {
+      fs.rmdirSync(dir);
+      logger.debug('Removed empty directory', { dir });
+    }
+  } catch {
+    // directory might not be empty or already gone
+  }
+
+  return true;
 }

@@ -14,14 +14,22 @@ import {
   getAllTags,
   getRecentMemories,
   upsertMemory,
+  deleteMemory,
+  clearCollection,
+  rebuildIndex,
 } from './src/qdrant.js';
 import {
   readMemoryFile,
   writeMemoryFile,
   addRelatedLink,
+  removeRelatedLink,
+  findReferencingFiles,
+  replaceAllReferences,
+  deleteMemoryFile,
+  getAbsolutePath,
 } from './src/memory-file.js';
 import { summarizeForMemory, shouldCrossLink } from './src/llm.js';
-import { getAllMemoryFiles, loadConfig } from './src/config.js';
+import { getAllMemoryFiles, loadConfig, getVaultRoot } from './src/config.js';
 import { commit } from './src/git.js';
 import { configureLogger } from './src/logger.js';
 import type { SearchResult } from './src/types.js';
@@ -138,6 +146,58 @@ async function main(): Promise<void> {
           },
         },
       },
+      {
+        name: 'memory_list_all',
+        description:
+          'List ALL memory files in the vault with their metadata (path, title, summary, tags, created, modified). Use this to get a complete inventory of stored memories before analysis or cleanup operations.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'memory_delete',
+        description:
+          'Delete a memory file and its Qdrant index entry. Automatically removes references to the deleted memory from ## Related sections in other files. Use this for removing false, outdated, or duplicate memories.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: {
+              type: 'string',
+              description: 'Path to the memory file to delete, e.g. "personal/old-note.md"',
+            },
+          },
+          required: ['path'],
+        },
+      },
+      {
+        name: 'memory_move',
+        description:
+          'Move/rename a memory file to a new path. Automatically updates ALL references ([[wiki links]] and ## Related entries) across the entire vault to point to the new path. Re-indexes the memory in Qdrant.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            old_path: {
+              type: 'string',
+              description: 'Current path of the memory file',
+            },
+            new_path: {
+              type: 'string',
+              description: 'New path for the memory file (including .md extension)',
+            },
+          },
+          required: ['old_path', 'new_path'],
+        },
+      },
+      {
+        name: 'memory_clear_collection',
+        description:
+          'Clear the entire Qdrant vector collection and recreate it. Use this before a full re-index when bulk changes have been made to memory files.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
     ],
   }));
 
@@ -194,6 +254,7 @@ async function main(): Promise<void> {
                 text: JSON.stringify(
                   {
                     path: memory.path,
+                    absolute_path: getAbsolutePath(memory.path),
                     title: memory.title,
                     summary: memory.summary,
                     tags: memory.tags,
@@ -326,6 +387,162 @@ async function main(): Promise<void> {
                   null,
                   2,
                 ),
+              },
+            ],
+          };
+        }
+
+        case 'memory_list_all': {
+          const files = getAllMemoryFiles();
+          const memories = [];
+          for (const file of files) {
+            const mem = readMemoryFile(file);
+            if (mem) {
+              memories.push({
+                path: mem.path,
+                absolute_path: getAbsolutePath(mem.path),
+                title: mem.title,
+                summary: mem.summary,
+                tags: mem.tags,
+                created: mem.created,
+                modified: mem.modified,
+              });
+            }
+          }
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    count: memories.length,
+                    vault_root: getVaultRoot(),
+                    memories,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        }
+
+        case 'memory_delete': {
+          const targetPath = args.path as string;
+          if (!targetPath) {
+            return {
+              content: [{ type: 'text', text: 'Error: "path" is required.' }],
+              isError: true,
+            };
+          }
+
+          const memory = readMemoryFile(targetPath);
+          if (!memory) {
+            return {
+              content: [{ type: 'text', text: `Memory not found at path: ${targetPath}` }],
+              isError: true,
+            };
+          }
+
+          const referencingFiles = findReferencingFiles(targetPath);
+          for (const refFile of referencingFiles) {
+            removeRelatedLink(refFile, targetPath);
+          }
+
+          await deleteMemory(targetPath);
+          deleteMemoryFile(targetPath);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    deleted: targetPath,
+                    title: memory.title,
+                    cleaned_references_from: referencingFiles,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        }
+
+        case 'memory_move': {
+          const oldPath = args.old_path as string;
+          const newPathStr = args.new_path as string;
+
+          if (!oldPath || !newPathStr) {
+            return {
+              content: [{ type: 'text', text: 'Error: "old_path" and "new_path" are required.' }],
+              isError: true,
+            };
+          }
+
+          const memory = readMemoryFile(oldPath);
+          if (!memory) {
+            return {
+              content: [{ type: 'text', text: `Memory not found at path: ${oldPath}` }],
+              isError: true,
+            };
+          }
+
+          if (readMemoryFile(newPathStr)) {
+            return {
+              content: [{ type: 'text', text: `Target path already exists: ${newPathStr}` }],
+              isError: true,
+            };
+          }
+
+          const moved = writeMemoryFile(newPathStr, {
+            title: memory.title,
+            summary: memory.summary,
+            tags: memory.tags,
+            content: memory.content,
+            relatedSection: memory.raw.match(
+              /## Related\s*\n(?:<!--[^>]*-->\s*\n)?([\s\S]*?)(?=\n## |\n---|$)/,
+            )?.[1]?.trim() || '',
+          });
+
+          const filesChanged = replaceAllReferences(oldPath, newPathStr);
+
+          deleteMemoryFile(oldPath);
+          await deleteMemory(oldPath);
+
+          await upsertMemory(moved);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    moved_from: oldPath,
+                    moved_to: newPathStr,
+                    title: moved.title,
+                    references_updated_in: filesChanged,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        }
+
+        case 'memory_clear_collection': {
+          await clearCollection();
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  message: 'Qdrant collection cleared and recreated.',
+                  collection: loadConfig().qdrant.collection,
+                }),
               },
             ],
           };

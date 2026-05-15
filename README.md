@@ -118,6 +118,23 @@ memory export              # Export all memories to zip
 memory import memories.zip # Import from zip (with merge)
 ```
 
+## Vault Maintenance: `/memory-dream` and `/memory-evaluate`
+
+Use the `/memory-dream` slash command to perform a quality pass over the entire vault. It scans for:
+
+- **Duplicates** — same fact/event stored in multiple files
+- **Contradictions** — conflicting information between memories
+- **Folder placement** — memories in wrong domain/category paths
+- **Broken links** — `[[wiki links]]` pointing to non-existent files
+- **Content quality** — missing summaries, tags, or formatting issues
+- **Staleness** — outdated or superseded information
+
+The command walks through discovery → analysis → user confirmation → execution → re-index. Run `/memory-dream` periodically to keep the vault clean and well-structured.
+
+Use `/memory-evaluate` to get a scored health report (0-100) of the vault without making changes.
+It produces a detailed markdown report at `.memory/reports/evaluate-YYYY-MM-DD.md`.
+Run it before and after `/memory-dream` to measure improvement.
+
 ## Memory File Format
 
 Each memory is a Markdown file with YAML frontmatter:
@@ -149,7 +166,7 @@ Preferred theme is [[catppuccin]]. Key plugins include
 
 ## MCP Server
 
-The MCP server exposes 5 tools to AI agents:
+The MCP server exposes 9 tools to AI agents:
 
 | Tool | Description |
 |------|------------|
@@ -158,6 +175,10 @@ The MCP server exposes 5 tools to AI agents:
 | `memory_ingest` | Save new memory with auto-summarization and cross-linking |
 | `memory_list_tags` | List all unique tags in the store |
 | `memory_list_recent` | Show recently modified memories |
+| `memory_list_all` | List all memories with full metadata |
+| `memory_delete` | Delete a memory (auto-cleans references in other files) |
+| `memory_move` | Move/rename a memory (auto-updates all references) |
+| `memory_clear_collection` | Wipe and recreate the Qdrant index |
 
 ### Using with Claude Desktop
 
