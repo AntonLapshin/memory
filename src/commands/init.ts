@@ -75,9 +75,12 @@ function setupClaudeConfig(): void {
   console.log(chalk.green('✓ .mcp.json configured with MCP server'));
 }
 
-function setupAgentsMd(): void {
+function setupAgentsMd(target: 'opencode' | 'claude'): void {
   const cwd = process.cwd();
-  const agentsPath = path.join(cwd, 'AGENTS.md');
+  const agentsPath =
+    target === 'claude'
+      ? path.join(cwd, '.claude', 'claude.md')
+      : path.join(cwd, 'AGENTS.md');
 
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
@@ -90,18 +93,29 @@ function setupAgentsMd(): void {
   }
 
   const memoryContent = fs.readFileSync(packageAgentsPath, 'utf-8');
+  const label = target === 'claude' ? '.claude/claude.md' : 'AGENTS.md';
 
   if (fs.existsSync(agentsPath)) {
     const existing = fs.readFileSync(agentsPath, 'utf-8');
     if (existing.includes('# Memory Usage Guide for AI Agents')) {
-      console.log(chalk.dim('  AGENTS.md already has Memory guide, skipping'));
+      console.log(chalk.dim(`  ${label} already has Memory guide, skipping`));
       return;
     }
+    // Ensure parent directory exists for claude case
+    const dir = path.dirname(agentsPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
     fs.writeFileSync(agentsPath, memoryContent + '\n' + existing, 'utf-8');
-    console.log(chalk.green('✓ AGENTS.md prepended with Memory usage guide'));
+    console.log(chalk.green(`✓ ${label} prepended with Memory usage guide`));
   } else {
+    // Ensure parent directory exists for claude case
+    const dir = path.dirname(agentsPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
     fs.writeFileSync(agentsPath, memoryContent, 'utf-8');
-    console.log(chalk.green('✓ AGENTS.md created with Memory usage guide'));
+    console.log(chalk.green(`✓ ${label} created with Memory usage guide`));
   }
 }
 
@@ -301,7 +315,7 @@ export async function initCommand(options: { global: boolean }): Promise<void> {
     setupOpencodeConfig();
   }
 
-  setupAgentsMd();
+  setupAgentsMd(clientTarget);
 
   const root = getMemoryRoot();
   console.log(chalk.bold.green('\n✨ Memory is ready!'));
