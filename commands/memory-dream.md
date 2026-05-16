@@ -8,6 +8,13 @@ You are performing a "dream" — a quality pass over the user's entire memory va
 Your goal: refine content, restructure folders, merge duplicates, delete false/contradictory memories,
 fix broken references, then re-index.
 
+> **Note:** With smart ingestion (see AGENTS.md Smart Ingestion Protocol), many issues
+> that previously required dreaming — poor folder placement, missing tags,
+> duplicate creation, inconsistent naming — are now caught at ingest time.
+> Dreaming is now primarily for periodic bulk cleanup, catching contradictions
+> that span multiple memories, and identifying staleness. It should be needed
+> far less frequently than before.
+
 ## Vault Location
 
 The vault's `.md` files live on disk. To find them:

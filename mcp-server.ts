@@ -21,6 +21,7 @@ import {
 import {
   readMemoryFile,
   writeMemoryFile,
+  mergeMemoryFile,
   addRelatedLink,
   removeRelatedLink,
   findReferencingFiles,
@@ -31,8 +32,8 @@ import {
 import { summarizeForMemory, shouldCrossLink } from './src/llm.js';
 import { getAllMemoryFiles, loadConfig, getVaultRoot } from './src/config.js';
 import { commit } from './src/git.js';
-import { configureLogger } from './src/logger.js';
-import type { SearchResult } from './src/types.js';
+import { configureLogger, logger } from './src/logger.js';
+import type { SearchResult, MemoryFile } from './src/types.js';
 
 async function main(): Promise<void> {
   // Initialize logger
@@ -100,23 +101,40 @@ async function main(): Promise<void> {
       {
         name: 'memory_ingest',
         description:
-          'Save a new memory to your personal memory store. The tool will summarize the content, determine the right folder structure, find related existing memories, and add cross-links between them. Use this when the user shares important facts, preferences, decisions, or when completing significant work.',
+          'Save a new memory to your personal memory store. For best quality, follow the Smart Ingestion Protocol in AGENTS.md: search for related memories, read them, decide on placement/merge/tags/summary, then provide path, title, tags, and summary explicitly. When those fields are all provided, LLM summarization is skipped entirely. Use merge_with to append new information to an existing memory instead of creating a duplicate.',
         inputSchema: {
           type: 'object',
           properties: {
             content: {
               type: 'string',
-              description: 'Raw text content to save as a memory',
+              description:
+                'Memory content in markdown. Write in first person or factual third person. Use [[wiki links]] for related concepts. Keep it self-contained — someone reading it 6 months later should understand the context.',
             },
             title: {
               type: 'string',
               description:
-                'Optional: specify a title (otherwise the LLM will generate one)',
+                'A concise title (1-8 words). Provide when the agent has determined the title; otherwise the LLM will generate one.',
             },
             path: {
               type: 'string',
               description:
-                'Optional: specify an exact file path (otherwise the LLM will determine it)',
+                'Exact file path relative to vault root, e.g. "personal/preferences/development/editor-setup.md". Use kebab-case, follow folder conventions (personal/, work/, learning/). Provide when the agent has determined the placement; otherwise the LLM will determine it.',
+            },
+            tags: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                '2-5 lowercase tags (e.g. ["neovim", "editor", "preferences"]). Provide when the agent has determined the tags; otherwise the LLM will generate them. Reuse existing tags when possible — check memory_list_tags first.',
+            },
+            summary: {
+              type: 'string',
+              description:
+                'A 2-5 sentence summary (max 500 chars) capturing the key facts. Provide when the agent has crafted the summary; otherwise the LLM will generate one.',
+            },
+            merge_with: {
+              type: 'string',
+              description:
+                'Path of an existing memory file to merge this content INTO (appends with "## Updated (YYYY-MM-DD)" separator). Use when the new information is an update or addition to an existing memory rather than a new topic. Tags will be combined, created date preserved, summary optionally updated. When set, path is ignored.',
             },
           },
           required: ['content'],
@@ -284,21 +302,66 @@ async function main(): Promise<void> {
             };
           }
 
-          const existingFiles = getAllMemoryFiles();
-          const folderTree = buildFolderTree(existingFiles);
-          const summary = await summarizeForMemory(rawText, folderTree);
+          const agentProvidedPath = (args.path as string) || '';
+          const agentProvidedTitle = (args.title as string) || '';
+          const agentProvidedTags = (args.tags as string[]) || [];
+          const agentProvidedSummary = (args.summary as string) || '';
+          const mergeWith = (args.merge_with as string) || '';
 
-          if (args.title) summary.title = args.title as string;
-          if (args.path) summary.suggested_path = args.path as string;
+          const hasFullAgentInput =
+            agentProvidedPath &&
+            agentProvidedTitle &&
+            agentProvidedTags.length > 0 &&
+            agentProvidedSummary;
 
-          const memory = writeMemoryFile(summary.suggested_path, {
-            title: summary.title,
-            summary: summary.summary,
-            tags: summary.tags,
-            content: summary.content,
-          });
+          let title: string;
+          let suggestedPath: string;
+          let tags: string[];
+          let summaryText: string;
+          let content: string;
 
-          const relatedSearches = await searchMemories(summary.summary, {
+          if (hasFullAgentInput) {
+            title = agentProvidedTitle;
+            suggestedPath = agentProvidedPath;
+            tags = agentProvidedTags;
+            summaryText = agentProvidedSummary;
+            content = rawText;
+            logger.info('Using agent-provided metadata, skipping LLM', {
+              path: suggestedPath,
+              title,
+            });
+          } else {
+            const existingFiles = getAllMemoryFiles();
+            const folderTree = buildFolderTree(existingFiles);
+            const llmResult = await summarizeForMemory(rawText, folderTree);
+
+            title = agentProvidedTitle || llmResult.title;
+            suggestedPath = agentProvidedPath || llmResult.suggested_path;
+            tags = agentProvidedTags.length > 0
+              ? agentProvidedTags
+              : llmResult.tags;
+            summaryText = agentProvidedSummary || llmResult.summary;
+            content = llmResult.content;
+          }
+
+          let memory: MemoryFile;
+          if (mergeWith) {
+            memory = mergeMemoryFile(mergeWith, {
+              title,
+              summary: summaryText,
+              tags,
+              content,
+            });
+          } else {
+            memory = writeMemoryFile(suggestedPath, {
+              title,
+              summary: summaryText,
+              tags,
+              content,
+            });
+          }
+
+          const relatedSearches = await searchMemories(memory.summary, {
             limit: 5,
           });
           const relatedLinks: Array<{
@@ -312,7 +375,7 @@ async function main(): Promise<void> {
             if (related.score < 0.4) continue;
 
             const decision = await shouldCrossLink(
-              summary.summary,
+              memory.summary,
               related.summary,
               related.path,
             );

@@ -77,13 +77,26 @@ Creates `~/.memory/` with the following structure:
 
 ### Save a Memory
 
+**Via MCP (agent-driven, recommended for quality):**
+
+The AI agent follows the [Smart Ingestion Protocol](AGENTS.md#smart-ingestion-protocol):
+1. Searches for related/duplicate memories before creating anything
+2. Decides whether to merge into an existing memory or create a new one
+3. Determines the best folder path, tags, and summary
+4. Calls `memory_ingest` with all decisions pre-made — the local LLM is bypassed
+
+**Via CLI (quick capture, local LLM handles it):**
+
 ```bash
 memory ingest "I use neovim with lazy.nvim and prefer the catppuccin theme"
 ```
 
-The LLM automatically:
+The CLI still uses the local LLM for convenience. Use `--path`, `--tags`, `--title`
+flags to override LLM decisions.
+
+The tool then:
 1. Summarizes the content into a concise memory
-2. Chooses an appropriate folder path (e.g., `personal/preferences/development/editor-setup.md`)
+2. Chooses an appropriate folder path (when not agent-provided)
 3. Assigns relevant tags
 4. Formats the content with proper Markdown
 5. Finds and cross-links related existing memories
@@ -179,7 +192,7 @@ The MCP server exposes 9 tools to AI agents:
 |------|------------|
 | `memory_search` | Semantic vector search with tag filtering |
 | `memory_get` | Read full content of a specific memory |
-| `memory_ingest` | Save new memory with auto-summarization and cross-linking |
+| `memory_ingest` | Save new memory or update existing via `merge_with`. Agent provides `path`, `title`, `tags`, `summary` for best quality; local LLM is used as fallback. |
 | `memory_list_tags` | List all unique tags in the store |
 | `memory_list_recent` | Show recently modified memories |
 | `memory_list_all` | List all memories with full metadata |
@@ -217,18 +230,29 @@ learning/
   notes/
 ```
 
-The LLM determines the exact path during ingestion based on content. The folder structure grows organically.
+The agent determines the exact path during ingestion following the Smart Ingestion
+Protocol (see AGENTS.md). The folder structure grows organically as new topics are introduced.
 
 ## How It Works
 
 ### Ingestion Flow
 
+**Agent-driven path (recommended):**
+
+1. **Search** — Agent searches for related/duplicate memories before ingesting
+2. **Analyze** — Agent decides: merge into existing, create new, or restructure
+3. **Draft** — Agent writes markdown content, summary, and chooses path/tags
+4. **Ingest** — `memory_ingest` with all parameters explicitly provided (LLM bypassed)
+5. **Cross-referencing** — Vector search for related memories → LLM decides which to link → bidirectional `## Related` updates
+6. **Index** — Upsert into Qdrant with summary embedding
+7. **Commit** — Git add + commit (local only)
+
+**CLI path (local LLM fallback):**
+
 1. **Summarize** — LLM call: raw text → `{ title, summary, path, tags, content }`
 2. **Duplicate check** — Embed summary, search Qdrant for near-duplicates (0.95 threshold)
 3. **File creation** — Write `.md` file with frontmatter at the suggested path
-4. **Cross-referencing** — Vector search for related memories → LLM decides which to link → bidirectional `## Related` updates
-5. **Index** — Upsert into Qdrant with summary embedding
-6. **Commit** — Git add + commit (local only)
+4-7 — Same cross-referencing, indexing, and commit steps as above
 
 ### Retrieval Flow
 
