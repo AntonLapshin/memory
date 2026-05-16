@@ -7,7 +7,7 @@ Memory stores facts, decisions, preferences, and lessons as Markdown files in a 
 ## Architecture
 
 ```
-AI Agent (guided by AGENTS.md)
+AI Agent (guided by AGENTS.md or claude.md)
     │  MCP Protocol (stdio)
     ▼
 MCP Server (thin wrapper)
@@ -25,12 +25,12 @@ Memory CLI  ─── Qdrant (vector search)
 - **Node.js** >= 18
 - **Ollama** running with models pulled:
   ```bash
-  ollama pull llama3.2
+  ollama pull gemma4:e2b
   ollama pull nomic-embed-text
   ```
 - **Qdrant** (via Docker):
   ```bash
-  docker run -p 6333:6333 -v qdrant_data:/qdrant/storage qdrant/qdrant
+  docker run -p 6333:6333 qdrant/qdrant
   ```
 
 ## Quick Start
@@ -38,21 +38,28 @@ Memory CLI  ─── Qdrant (vector search)
 ### Installation
 
 ```bash
-git clone <this-repo>
+git clone https://github.com/AntonLapshin/memory.git
 cd memory
-npm install
-npm link          # makes `memory` available globally
+npm i
+npm run build
+npm i -g # makes `memory` available globally
 ```
 
 ### Initialize
 
 ```bash
-memory init
+memory init # local installation in the current directory (for project-specific memories)
+```
+
+or
+
+```bash
+memory init -g # global installation in the root directory ~/.memory to have shared memories across all projects
 ```
 
 Interactive wizard asks for:
 - GitHub repo URL (optional — local-only is fine)
-- Qdrant URL (default: `http://localhost:6333`)
+- Qdrant URL (default: `http://localhost:6333`) Dashboard is available at `http://localhost:6333/dashboard`
 - Ollama URLs and model names for LLM + embeddings
 
 Creates `~/.memory/` with the following structure:
@@ -118,9 +125,9 @@ memory export              # Export all memories to zip
 memory import memories.zip # Import from zip (with merge)
 ```
 
-## Vault Maintenance: `/memory-dream` and `/memory-evaluate`
+## Vault Maintenance. Agent commands `/memory-dream` and `/memory-evaluate`
 
-Use the `/memory-dream` slash command to perform a quality pass over the entire vault. It scans for:
+Use the `/memory-dream` agent slash command to perform a quality pass over the entire vault. It scans for:
 
 - **Duplicates** — same fact/event stored in multiple files
 - **Contradictions** — conflicting information between memories
@@ -179,34 +186,6 @@ The MCP server exposes 9 tools to AI agents:
 | `memory_delete` | Delete a memory (auto-cleans references in other files) |
 | `memory_move` | Move/rename a memory (auto-updates all references) |
 | `memory_clear_collection` | Wipe and recreate the Qdrant index |
-
-### Using with Claude Desktop
-
-Add to `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "memory": {
-      "command": "node",
-      "args": ["path/to/memory/mcp-server.js"]
-    }
-  }
-}
-```
-
-Or for development (uses tsx):
-
-```json
-{
-  "mcpServers": {
-    "memory": {
-      "command": "npx",
-      "args": ["tsx", "path/to/memory/mcp-server.ts"]
-    }
-  }
-}
-```
 
 ## Folder Convention
 
@@ -282,7 +261,7 @@ View with `memory config`. Edit with `memory config --set key=value`.
   },
   "llm": {
     "provider": "ollama",
-    "model": "llama3.2",
+    "model": "gemma4:e2b",
     "baseUrl": "http://localhost:11434"
   },
   "embedding": {
