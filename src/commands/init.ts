@@ -75,50 +75,6 @@ function setupClaudeConfig(): void {
   console.log(chalk.green('✓ .mcp.json configured with MCP server'));
 }
 
-function setupAgentsMd(target: 'opencode' | 'claude'): void {
-  const cwd = process.cwd();
-  const agentsPath =
-    target === 'claude'
-      ? path.join(cwd, '.claude', 'claude.md')
-      : path.join(cwd, 'AGENTS.md');
-
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
-  const packageRoot = path.resolve(__dirname, '..', '..', '..');
-  const packageAgentsPath = path.join(packageRoot, 'AGENTS.md');
-
-  if (!fs.existsSync(packageAgentsPath)) {
-    console.log(chalk.yellow('⚠ Could not find AGENTS.md in package'));
-    return;
-  }
-
-  const memoryContent = fs.readFileSync(packageAgentsPath, 'utf-8');
-  const label = target === 'claude' ? '.claude/claude.md' : 'AGENTS.md';
-
-  if (fs.existsSync(agentsPath)) {
-    const existing = fs.readFileSync(agentsPath, 'utf-8');
-    if (existing.includes('# Memory Usage Guide for AI Agents')) {
-      console.log(chalk.dim(`  ${label} already has Memory guide, skipping`));
-      return;
-    }
-    // Ensure parent directory exists for claude case
-    const dir = path.dirname(agentsPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(agentsPath, memoryContent + '\n' + existing, 'utf-8');
-    console.log(chalk.green(`✓ ${label} prepended with Memory usage guide`));
-  } else {
-    // Ensure parent directory exists for claude case
-    const dir = path.dirname(agentsPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(agentsPath, memoryContent, 'utf-8');
-    console.log(chalk.green(`✓ ${label} created with Memory usage guide`));
-  }
-}
-
 function setupCommands(target: 'opencode' | 'claude'): void {
   const cwd = process.cwd();
 
@@ -353,8 +309,6 @@ export async function initCommand(options: { global: boolean }): Promise<void> {
   } else {
     setupOpencodeConfig();
   }
-
-  setupAgentsMd(clientTarget);
 
   setupCommands(clientTarget);
 

@@ -101,7 +101,7 @@ async function main(): Promise<void> {
       {
         name: 'memory_ingest',
         description:
-          'Save a new memory to your personal memory store. For best quality, follow the Smart Ingestion Protocol in AGENTS.md: search for related memories, read them, decide on placement/merge/tags/summary, then provide path, title, tags, and summary explicitly. When those fields are all provided, LLM summarization is skipped entirely. Use merge_with to append new information to an existing memory instead of creating a duplicate.',
+          'Save a new memory to your personal memory store. For best quality, follow the Smart Ingestion Protocol: search for related memories, read them, decide on placement/merge/tags/summary, then provide path, title, tags, and summary explicitly. When those fields are all provided, LLM summarization is skipped entirely. Use merge_with to append new information to an existing memory instead of creating a duplicate.',
         inputSchema: {
           type: 'object',
           properties: {

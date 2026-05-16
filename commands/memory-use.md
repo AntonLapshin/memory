@@ -1,10 +1,16 @@
-# Memory Usage Guide for AI Agents
+---
+description: Use Memory — consume, retrieve, and ingest memories
+agent: plan
+subtask: true
+---
 
-## What This Is
+You are working with the user's personal memory store. Memories are persisted
+across conversations as markdown files with vector search via Qdrant. You
+access them through MCP tools.
 
-Memory is a personal knowledge store that persists across conversations. It stores
-facts, decisions, preferences, and lessons as markdown files with vector search.
-You access it through MCP tools.
+Your goal: process the user's prompt by actively retrieving relevant memories,
+and ingesting new ones when appropriate. Follow the Smart Ingestion Protocol
+for all ingestion.
 
 ## When to Save a Memory
 
@@ -28,7 +34,7 @@ You access it through MCP tools.
 
 ## Smart Ingestion Protocol
 
-**The agent is responsible for placement, tagging, summarization, and merge
+**You are responsible for placement, tagging, summarization, and merge
 decisions.** Do NOT call `memory_ingest` with raw content and expect the tool to
 figure everything out — the local LLM is small and makes poor placement/tagging
 choices. Instead, follow this protocol for every ingestion.
@@ -172,63 +178,7 @@ skips its local LLM entirely and uses your values directly.
 | `memory_move` | Move/rename a memory to a better path (auto-updates all references) |
 | `memory_clear_collection` | Wipe and recreate the Qdrant index before a full re-index |
 
-## Examples
-
-### Example 1: User shares a preference
-```
-User: "By the way, I prefer TypeScript over JavaScript for all my projects."
-Agent: *calls memory_search with query: "TypeScript JavaScript preference"*
-Agent: *reads results — no existing match*
-Agent: *calls memory_list_tags — sees tags like [typescript, preferences, development]*
-Agent: *calls memory_ingest with:*
-  content: "User prefers TypeScript over JavaScript for all projects.
-           They are comfortable with strict mode and prefer explicit
-           types over inference for function signatures."
-  path: "personal/preferences/development/typescript-preference.md"
-  title: "TypeScript Preference"
-  tags: ["typescript", "preferences", "development"]
-  summary: "User prefers TypeScript over JavaScript for all projects..."
-```
-
-### Example 2: Remembering a project decision
-```
-User: "Let's use PostgreSQL for the new API because we need JSONB support."
-Agent: *searches for "API project database decision"*
-Agent: *finds no match, creates:*
-  path: "work/new-api/architecture/database-choice.md"
-  title: "Database Choice — PostgreSQL"
-  tags: ["postgresql", "database", "new-api", "architecture"]
-  summary: "Project 'new-api' uses PostgreSQL. Decision driven by need for JSONB..."
-```
-
-### Example 3: Retrieving context before work
-```
-User: "Let's continue working on the API project."
-Agent: *calls memory_search with query: "API project PostgreSQL design"*
-Agent: *reads top result with memory_get*
-Agent: "I recall we decided on PostgreSQL for JSONB support. Should I continue with that?"
-```
-
-### Example 4: User corrects you (update existing memory)
-```
-User: "No, I use fish shell, not zsh."
-Agent: *searches for "shell preference zsh"*
-Agent: *finds existing: personal/preferences/development/shell-setup.md*
-Agent: *updates via merge:*
-  merge_with: "personal/preferences/development/shell-setup.md"
-  content: "User uses fish shell, not zsh. Corrected from earlier assumption."
-  summary: "User uses fish shell..."
-  tags: ["fish", "shell", "preferences"]
-```
-
-### Example 5: New info about an existing topic
-```
-User: "I also use Tmux integrated with my Neovim setup."
-Agent: *searches for "neovim editor setup"*
-Agent: *finds: personal/preferences/development/editor-setup.md*
-Agent: *merges with the editor-setup.md file*
-Agent: "Updated your editor setup memory to include Tmux."
-```
+---
 
 ## Folder Convention (for reference)
 
@@ -242,25 +192,20 @@ The agent determines the exact path during ingestion using the Smart Ingestion
 Protocol above (not the local LLM). When extending an existing topic, reuse the
 parent folder of the related memory.
 
-## Vault Maintenance: `/memory-dream` and `/memory-evaluate`
+---
 
-Use the `/memory-dream` slash command to perform a quality pass over the entire memory vault.
-It scans all memories for:
+## Processing the User's Prompt
 
-- **Duplicates** — same fact/event stored in multiple files
-- **Contradictions** — conflicting information between memories
-- **Folder placement** — memories in wrong domain/category paths
-- **Broken links** — `[[wiki links]]` pointing to non-existent files
-- **Content quality** — missing summaries, tags, or formatting issues
-- **Staleness** — outdated or superseded information
+Now process the user's prompt through the lens of everything above:
 
-With smart ingestion, many issues (poor placement, missing tags, duplicate
-creation) are caught at ingest time. Dreaming is still valuable for periodic
-bulk cleanup, catching contradictions that span multiple memories, and
-identifying staleness.
+1. **Search first** — call `memory_search` with queries relevant to the user's
+   prompt. Read matching memories with `memory_get`.
+2. **Present context** — tell the user what you found in their memory store
+   that's relevant to their request.
+3. **Ingest if appropriate** — if the user's prompt contains new facts, preferences,
+   corrections, or decisions worth remembering, follow the Smart Ingestion
+   Protocol to save them.
+4. **Act on the prompt** — beyond memory operations, carry out any other actions
+   the user's prompt requests.
 
-Run `/memory-dream` periodically to keep the vault clean and well-structured.
-
-Use `/memory-evaluate` to get a scored health report (0-100) of the vault without making changes.
-It produces a detailed markdown report at `.memory/reports/evaluate-YYYY-MM-DD.md`.
-Run it before and after `/memory-dream` to measure improvement.
+Always prefer `merge_with` over creating duplicates. Always search before ingesting.
