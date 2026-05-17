@@ -37,7 +37,7 @@ describe('config', () => {
     });
 
     it('isLocalMode returns true when root is not under home dir', () => {
-      setMemoryRoot(memoryDir);
+      setMemoryRoot(path.resolve('/not-under-home'));
       expect(isLocalMode()).toBe(true);
     });
   });
@@ -160,7 +160,7 @@ describe('config', () => {
       const files = getAllMemoryFiles();
       expect(files).toHaveLength(2);
       expect(files).toContain('test.md');
-      expect(files).toContain('personal/notes.md');
+      expect(files).toContain(path.join('personal', 'notes.md'));
     });
 
     it('should skip dotfiles and dotdirs', () => {
