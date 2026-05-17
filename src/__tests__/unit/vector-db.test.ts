@@ -28,6 +28,14 @@ vi.mock('../../embeddings.js', () => {
   };
 });
 
+type MockedEmbeddings = {
+  generateEmbedding: (text: string) => Promise<number[]>;
+  checkOllamaHealth: () => void;
+  generateEmbeddingsBatch: () => void;
+  _setEmbedding: (text: string, vec: number[]) => void;
+  _clearEmbeddings: () => void;
+};
+
 beforeEach(() => {
   tmpDir = createTempDir();
   memoryDir = initTestConfig(tmpDir);
@@ -69,10 +77,10 @@ describe('vector-db', () => {
     it('should insert a memory into the database', async () => {
       setMemoryRoot(memoryDir);
       const { ensureTable, upsertMemory, getMemoryCount } = await import('../../vector-db.js');
-      const embeddings = await import('../../embeddings.js');
+      const embeddings = await import('../../embeddings.js') as unknown as MockedEmbeddings;
 
       const baseVec = deterministicEmbedding(42);
-      (embeddings._setEmbedding as (t: string, v: number[]) => void)('summary-A', baseVec);
+      embeddings._setEmbedding('summary-A', baseVec);
 
       ensureTable();
       await upsertMemory({
@@ -93,11 +101,11 @@ describe('vector-db', () => {
     it('should update an existing memory (same path)', async () => {
       setMemoryRoot(memoryDir);
       const { ensureTable, upsertMemory, getMemoryCount } = await import('../../vector-db.js');
-      const embeddings = await import('../../embeddings.js');
+      const embeddings = await import('../../embeddings.js') as unknown as MockedEmbeddings;
 
       const baseVec = deterministicEmbedding(42);
-      (embeddings._setEmbedding as (t: string, v: number[]) => void)('summary-old', baseVec);
-      (embeddings._setEmbedding as (t: string, v: number[]) => void)('summary-new', baseVec);
+      embeddings._setEmbedding('summary-old', baseVec);
+      embeddings._setEmbedding('summary-new', baseVec);
 
       ensureTable();
       await upsertMemory({
@@ -140,20 +148,20 @@ describe('vector-db', () => {
     it('should return results ordered by relevance', async () => {
       setMemoryRoot(memoryDir);
       const { ensureTable, upsertMemory, searchMemories } = await import('../../vector-db.js');
-      const embeddings = await import('../../embeddings.js');
+      const embeddings = await import('../../embeddings.js') as unknown as MockedEmbeddings;
       ensureTable();
 
       const queryVec = deterministicEmbedding(100);
-      (embeddings._setEmbedding as (t: string, v: number[]) => void)('semantic search about react', queryVec);
+      embeddings._setEmbedding('semantic search about react', queryVec);
 
       const relatedVec = embeddingWithSimilarity(queryVec, 0.8, 1);
-      (embeddings._setEmbedding as (t: string, v: number[]) => void)('react hooks summary', relatedVec);
+      embeddings._setEmbedding('react hooks summary', relatedVec);
 
       const somewhatVec = embeddingWithSimilarity(queryVec, 0.5, 2);
-      (embeddings._setEmbedding as (t: string, v: number[]) => void)('general frontend summary', somewhatVec);
+      embeddings._setEmbedding('general frontend summary', somewhatVec);
 
       const unrelatedVec = embeddingWithSimilarity(queryVec, 0.1, 3);
-      (embeddings._setEmbedding as (t: string, v: number[]) => void)('cooking pasta summary', unrelatedVec);
+      embeddings._setEmbedding('cooking pasta summary', unrelatedVec);
 
       await upsertMemory({
         path: 'tech/react.md',
@@ -199,15 +207,15 @@ describe('vector-db', () => {
     it('should respect limit option', async () => {
       setMemoryRoot(memoryDir);
       const { ensureTable, upsertMemory, searchMemories } = await import('../../vector-db.js');
-      const embeddings = await import('../../embeddings.js');
+      const embeddings = await import('../../embeddings.js') as unknown as MockedEmbeddings;
       ensureTable();
 
       const queryVec = deterministicEmbedding(200);
-      (embeddings._setEmbedding as (t: string, v: number[]) => void)('query limit test', queryVec);
+      embeddings._setEmbedding('query limit test', queryVec);
 
       for (let i = 0; i < 5; i++) {
         const vec = embeddingWithSimilarity(queryVec, 0.7, i + 10);
-        (embeddings._setEmbedding as (t: string, v: number[]) => void)(`summary-${i}`, vec);
+        embeddings._setEmbedding(`summary-${i}`, vec);
         await upsertMemory({
           path: `test/mem-${i}.md`,
           title: `Memory ${i}`,
@@ -229,10 +237,10 @@ describe('vector-db', () => {
     it('should remove a memory from the database', async () => {
       setMemoryRoot(memoryDir);
       const { ensureTable, upsertMemory, deleteMemory, getMemoryCount } = await import('../../vector-db.js');
-      const embeddings = await import('../../embeddings.js');
+      const embeddings = await import('../../embeddings.js') as unknown as MockedEmbeddings;
 
       const vec = deterministicEmbedding(300);
-      (embeddings._setEmbedding as (t: string, v: number[]) => void)('to delete', vec);
+      embeddings._setEmbedding('to delete', vec);
 
       ensureTable();
       await upsertMemory({
@@ -265,12 +273,12 @@ describe('vector-db', () => {
     it('should return unique sorted tags', async () => {
       setMemoryRoot(memoryDir);
       const { ensureTable, upsertMemory, getAllTags } = await import('../../vector-db.js');
-      const embeddings = await import('../../embeddings.js');
+      const embeddings = await import('../../embeddings.js') as unknown as MockedEmbeddings;
 
       const vec = deterministicEmbedding(400);
-      (embeddings._setEmbedding as (t: string, v: number[]) => void)('s1', vec);
-      (embeddings._setEmbedding as (t: string, v: number[]) => void)('s2', vec);
-      (embeddings._setEmbedding as (t: string, v: number[]) => void)('s3', vec);
+      embeddings._setEmbedding('s1', vec);
+      embeddings._setEmbedding('s2', vec);
+      embeddings._setEmbedding('s3', vec);
 
       ensureTable();
       await upsertMemory({
@@ -304,11 +312,11 @@ describe('vector-db', () => {
     it('should return memories ordered by modified desc', async () => {
       setMemoryRoot(memoryDir);
       const { ensureTable, upsertMemory, getRecentMemories } = await import('../../vector-db.js');
-      const embeddings = await import('../../embeddings.js');
+      const embeddings = await import('../../embeddings.js') as unknown as MockedEmbeddings;
 
       const vec = deterministicEmbedding(500);
-      (embeddings._setEmbedding as (t: string, v: number[]) => void)('s-old', vec);
-      (embeddings._setEmbedding as (t: string, v: number[]) => void)('s-new', vec);
+      embeddings._setEmbedding('s-old', vec);
+      embeddings._setEmbedding('s-new', vec);
 
       ensureTable();
       await upsertMemory({
@@ -331,12 +339,12 @@ describe('vector-db', () => {
     it('should respect limit', async () => {
       setMemoryRoot(memoryDir);
       const { ensureTable, upsertMemory, getRecentMemories } = await import('../../vector-db.js');
-      const embeddings = await import('../../embeddings.js');
+      const embeddings = await import('../../embeddings.js') as unknown as MockedEmbeddings;
 
       const vec = deterministicEmbedding(500);
       ensureTable();
       for (let i = 0; i < 5; i++) {
-        (embeddings._setEmbedding as (t: string, v: number[]) => void)(`s-${i}`, vec);
+        embeddings._setEmbedding(`s-${i}`, vec);
         await upsertMemory({
           path: `r${i}.md`, title: `R${i}`, summary: `s-${i}`,
           tags: [], created: `2025-01-0${i + 1}T00:00:00.000Z`, modified: `2025-01-0${i + 1}T00:00:00.000Z`,
@@ -353,10 +361,10 @@ describe('vector-db', () => {
     it('should drop and recreate the table', async () => {
       setMemoryRoot(memoryDir);
       const { ensureTable, upsertMemory, clearCollection, getMemoryCount } = await import('../../vector-db.js');
-      const embeddings = await import('../../embeddings.js');
+      const embeddings = await import('../../embeddings.js') as unknown as MockedEmbeddings;
 
       const vec = deterministicEmbedding(600);
-      (embeddings._setEmbedding as (t: string, v: number[]) => void)('s-clear', vec);
+      embeddings._setEmbedding('s-clear', vec);
 
       ensureTable();
       await upsertMemory({
@@ -374,7 +382,7 @@ describe('vector-db', () => {
     it('should index all .md files in the vault', async () => {
       setMemoryRoot(memoryDir);
       const { ensureTable, rebuildIndex, getMemoryCount } = await import('../../vector-db.js');
-      const embeddings = await import('../../embeddings.js');
+      const embeddings = await import('../../embeddings.js') as unknown as MockedEmbeddings;
 
       const vault = getVaultRoot();
       const fileContent = [
@@ -394,7 +402,7 @@ describe('vector-db', () => {
       fs.writeFileSync(path.join(vault, 'rebuild-b.md'), fileContent);
 
       const vec = deterministicEmbedding(700);
-      (embeddings._setEmbedding as (t: string, v: number[]) => void)('rebuilt memory summary', vec);
+      embeddings._setEmbedding('rebuilt memory summary', vec);
 
       ensureTable();
       const result = await rebuildIndex();

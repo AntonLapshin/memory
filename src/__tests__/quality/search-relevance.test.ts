@@ -29,6 +29,14 @@ vi.mock('../../embeddings.js', () => {
   };
 });
 
+type MockedEmbeddings = {
+  generateEmbedding: (text: string) => Promise<number[]>;
+  checkOllamaHealth: () => void;
+  generateEmbeddingsBatch: () => void;
+  _setEmbedding: (text: string, vec: number[]) => void;
+  _clearEmbeddings: () => void;
+};
+
 beforeEach(async () => {
   tmpDir = createTempDir();
   memoryDir = initTestConfig(tmpDir);
@@ -49,7 +57,7 @@ afterEach(async () => {
 describe('search relevance quality', () => {
   it('ranks highly similar content above moderately similar content', async () => {
     const { ensureTable, upsertMemory, searchMemories } = await import('../../vector-db.js');
-    const embeddings = await import('../../embeddings.js');
+    const embeddings = await import('../../embeddings.js') as unknown as MockedEmbeddings;
     ensureTable();
 
     const queryVec = deterministicEmbedding(42);
@@ -96,7 +104,7 @@ describe('search relevance quality', () => {
 
   it('scores diminish as cosine similarity decreases', async () => {
     const { ensureTable, upsertMemory, searchMemories } = await import('../../vector-db.js');
-    const embeddings = await import('../../embeddings.js');
+    const embeddings = await import('../../embeddings.js') as unknown as MockedEmbeddings;
     ensureTable();
 
     const queryVec = deterministicEmbedding(77);
@@ -142,7 +150,7 @@ describe('search relevance quality', () => {
 
   it('should score semantically unrelated content very low', async () => {
     const { ensureTable, upsertMemory, searchMemories } = await import('../../vector-db.js');
-    const embeddings = await import('../../embeddings.js');
+    const embeddings = await import('../../embeddings.js') as unknown as MockedEmbeddings;
     ensureTable();
 
     const queryVec = deterministicEmbedding(55);
@@ -191,7 +199,7 @@ describe('search relevance quality', () => {
 
   it('near-identical content should score above 0.30', async () => {
     const { ensureTable, upsertMemory, searchMemories } = await import('../../vector-db.js');
-    const embeddings = await import('../../embeddings.js');
+    const embeddings = await import('../../embeddings.js') as unknown as MockedEmbeddings;
     ensureTable();
 
     const queryVec = deterministicEmbedding(99);
@@ -224,7 +232,7 @@ describe('search relevance quality', () => {
 
   it('score follows predicted formula: max(0, 1 - L2)', async () => {
     const { ensureTable, upsertMemory, searchMemories } = await import('../../vector-db.js');
-    const embeddings = await import('../../embeddings.js');
+    const embeddings = await import('../../embeddings.js') as unknown as MockedEmbeddings;
     ensureTable();
 
     const queryVec = deterministicEmbedding(33);
@@ -260,7 +268,7 @@ describe('search relevance quality', () => {
 describe('score edge cases', () => {
   it('identical vectors (cos_sim=1.0) should score exactly 1.0', async () => {
     const { ensureTable, upsertMemory, searchMemories } = await import('../../vector-db.js');
-    const embeddings = await import('../../embeddings.js');
+    const embeddings = await import('../../embeddings.js') as unknown as MockedEmbeddings;
     ensureTable();
 
     const vec = deterministicEmbedding(123);
@@ -286,7 +294,7 @@ describe('score edge cases', () => {
 
   it('empty database returns empty results', async () => {
     const { ensureTable, searchMemories } = await import('../../vector-db.js');
-    const embeddings = await import('../../embeddings.js');
+    const embeddings = await import('../../embeddings.js') as unknown as MockedEmbeddings;
     ensureTable();
 
     const vec = deterministicEmbedding(999);
