@@ -1,17 +1,29 @@
 import chalk from 'chalk';
 import { getStatus, getCommitCount } from '../git.js';
-import { getAllMemoryFiles, isLocalMode } from '../config.js';
+import { getAllMemoryFiles, isLocalMode, loadConfig } from '../config.js';
 import { getAllTags, getMemoryCount } from '../vector-db.js';
+import { checkOllamaHealth } from '../embeddings.js';
 
 export async function statusCommand(): Promise<void> {
   console.log(chalk.bold.cyan('\n🧠 Memory Status\n'));
 
   try {
+    const config = loadConfig();
     const status = await getStatus();
     const totalFiles = getAllMemoryFiles().length;
     const commitCount = await getCommitCount();
     const tags = await getAllTags();
     const indexedCount = await getMemoryCount();
+
+    const ollamaHealth = await checkOllamaHealth(config.embedding.baseUrl);
+    if (ollamaHealth.running) {
+      console.log(chalk.white('Ollama:   '), chalk.green('connected'), chalk.dim(`(${config.embedding.baseUrl})`));
+    } else {
+      console.log(chalk.white('Ollama:   '), chalk.red.bold('NOT CONNECTED'), chalk.dim(`(${config.embedding.baseUrl})`));
+      console.log(chalk.red(`          ${ollamaHealth.error || 'Unable to reach Ollama'}`));
+      console.log(chalk.yellow('          Embeddings and vector search will fail until Ollama is running.'));
+    }
+    console.log();
 
     if (isLocalMode()) {
       console.log(chalk.white('Mode:     '), chalk.dim('local (project-scoped)'));

@@ -99,7 +99,7 @@ Found 2 matching memories:
 ### Other Commands
 
 ```bash
-memory status              # Show repo status, counts, tags
+memory status              # Show repo status, counts, tags, Ollama connection
 memory index               # Rebuild vector index from .md files
 memory pull                # Pull from remote, re-index
 memory push                # Push local commits
@@ -109,6 +109,8 @@ memory config --set embedding.model=all-minilm
 memory export              # Export all memories to zip
 memory import memories.zip # Import from zip
 ```
+
+`memory status` also verifies that Ollama is reachable, highlighting if the embedding server is down so the agent can surface this to the user.
 
 ## MCP Server
 
@@ -152,10 +154,15 @@ Preferred theme is [[catppuccin]].
 
 ## Agent Commands
 
-When configured with OpenCode or Claude, the agent receives a `/memory` slash command covering:
-- **Ingestion Protocol** — search → analyze → place → tag → summarize → write
-- **Vault Maintenance** — quality scan, duplication detection, link validation
-- **Health Evaluation** — scored report (0-100) with structured recommendations
+When configured with OpenCode or Claude, three slash commands are installed into `.opencode/command/` (or `.claude/commands/`):
+
+| Command | Purpose |
+|---------|---------|
+| `/memory-use <prompt>` | Retrieve relevant memories, ingest new facts/decisions/preferences |
+| `/memory-evaluate` | Score vault health (0-100), generate a structured evaluation report |
+| `/memory-dream` | Scan vault for duplicates, contradictions, broken links, quality issues — fix approved ones |
+
+During `memory init`, the actual vault path is injected into each command file (via `{{VAULT_PATH}}` / `{{MEMORY_ROOT}}` placeholders), so the agent never needs to guess where memories are stored.
 
 ## Configuration
 

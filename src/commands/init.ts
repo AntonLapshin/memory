@@ -97,6 +97,9 @@ function setupCommands(target: 'opencode' | 'claude'): void {
     fs.mkdirSync(commandsDir, { recursive: true });
   }
 
+  const vaultPath = getVaultRoot();
+  const memoryRoot = getMemoryRoot();
+
   const commandFiles = fs.readdirSync(sourceCommandsDir).filter((f) => f.endsWith('.md'));
   const label = target === 'claude' ? '.claude/commands/' : '.opencode/command/';
 
@@ -104,13 +107,22 @@ function setupCommands(target: 'opencode' | 'claude'): void {
     const src = path.join(sourceCommandsDir, file);
     const dest = path.join(commandsDir, file);
 
-    if (fs.existsSync(dest)) {
-      console.log(chalk.dim(`  ${label}${file} already exists, skipping`));
-      continue;
+    const rawContent = fs.readFileSync(src, 'utf-8');
+    const injectedContent = rawContent
+      .replace(/\{\{VAULT_PATH\}\}/g, vaultPath)
+      .replace(/\{\{MEMORY_ROOT\}\}/g, memoryRoot);
+
+    const exists = fs.existsSync(dest);
+    if (exists) {
+      const existingContent = fs.readFileSync(dest, 'utf-8');
+      if (existingContent === injectedContent) {
+        console.log(chalk.dim(`  ${label}${file} already up-to-date`));
+        continue;
+      }
     }
 
-    fs.copyFileSync(src, dest);
-    console.log(chalk.green(`✓ ${label}${file} installed`));
+    fs.writeFileSync(dest, injectedContent, 'utf-8');
+    console.log(chalk.green(`✓ ${label}${file} ${exists ? 'updated' : 'installed'}`));
   }
 }
 

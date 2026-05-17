@@ -1,7 +1,8 @@
 ---
-description: Use Memory — consume, retrieve, ingest, and maintain memories
+description: Use Memory — retrieve relevant memories and ingest new ones
 agent: plan
 subtask: true
+argument: <prompt>
 ---
 
 You are working with the user's personal memory store. Memories are persisted
@@ -10,6 +11,17 @@ access them through MCP tools and your own file tools.
 
 Your goal: process the user's prompt by actively retrieving relevant memories,
 and ingesting new ones when appropriate.
+
+## Vault Location
+
+The vault's `.md` files live at:
+
+```
+{{VAULT_PATH}}
+```
+
+Use `Read` to read `.md` files directly. Use `Grep` to search file contents.
+Use `memory_search` for semantic search (vector-based).
 
 ## When to Save a Memory
 
@@ -40,18 +52,7 @@ and ingesting new ones when appropriate.
 | `memory_delete` | Delete a memory file and index entry. Does NOT clean references — do that yourself. |
 | `memory_move` | Move/rename a memory. Updates index. Does NOT update references — do that yourself. |
 
-For reading files, listing memories, finding tags — use your native Read, Glob, Grep tools directly on the `.md` files.
-
----
-
-## Vault Location
-
-The vault's `.md` files live on disk. To find them:
-
-1. Search your filesystem with Glob for `**/.memory/vault/**/*.md` in the workspace.
-2. If not found, try `~/.memory/vault/` (global installation).
-3. Use `Read` to read `.md` files directly. Use `Grep` to search file contents.
-4. Use `memory_search` for semantic search (vector-based).
+For reading files, listing memories, finding tags — use your native Read, Glob, Grep tools directly on the `.md` files in `{{VAULT_PATH}}`.
 
 ---
 
@@ -64,7 +65,7 @@ The vault's `.md` files live on disk. To find them:
 1. Call `memory_search` with a query derived from the raw content you want to save.
    Use 2-3 different query angles if needed.
 2. Read the top 3-5 matches with your `Read` tool to see their full content and tags.
-3. Grep the vault for existing tag patterns and paths.
+3. Grep the vault at `{{VAULT_PATH}}` for existing tag patterns and paths.
 
 ### Phase 2: Analyze — Merge or Create?
 
@@ -146,46 +147,8 @@ All five fields (`content`, `path`, `title`, `tags`, `summary`) are required.
 
 **How to search effectively:**
 - Use `memory_search` for semantic searches
-- Use `Grep` on `**/*.md` for keyword searches
+- Use `Grep` on `{{VAULT_PATH}}/**/*.md` for keyword searches
 - After searching, use `Read` to read the full content of promising matches
-
----
-
-## Vault Maintenance
-
-### Quality Pass (`/memory-dream`)
-
-Periodically scan the entire vault for issues:
-
-1. Call `memory_search` with various queries or `Glob` for `**/*.md`
-2. Read every memory file
-3. Identify: duplicates, contradictions, folder placement issues, broken links, quality issues, staleness
-4. Present findings to the user for approval
-5. Fix approved issues: merge duplicates (read + write), move files (`memory_move`), delete (`memory_delete`), fix broken links, improve quality
-6. Run `npx memory index` to rebuild the vector index
-
-### Health Evaluation (`/memory-evaluate`)
-
-Score the vault (0-100):
-
-| Category | Deduction | Max |
-|----------|-----------|-----|
-| Duplicates | -5 per pair | -25 |
-| Contradictions | -8 per pair | -25 |
-| Folder placement | -3 per file | -15 |
-| Broken links | -3 each | -15 |
-| Content quality | -4 per file | -20 |
-| Staleness | -3 per file | -15 |
-
-Produce a report at `<memory_root>/reports/evaluate-YYYY-MM-DD.md`.
-
-### Maintenance Guardrails
-
-- NEVER auto-resolve contradictions. Always ask the user.
-- NEVER delete without user confirmation.
-- Before any destructive action, show what will happen and ask to continue.
-- Preserve `created` dates when merging (keep the earliest).
-- The `.md` files are the source of truth — always write them first, then re-index.
 
 ---
 
