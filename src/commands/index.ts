@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { getAllMemoryFiles } from '../config.js';
-import { rebuildIndex } from '../qdrant.js';
+import { rebuildIndex } from '../vector-db.js';
 
 export async function indexCommand(): Promise<void> {
   const files = getAllMemoryFiles();

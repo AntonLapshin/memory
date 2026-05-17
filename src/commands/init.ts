@@ -15,7 +15,7 @@ import {
   setMemoryRoot,
 } from '../config.js';
 import { cloneOrPull, initGitRepo, setRemote } from '../git.js';
-import { ensureCollection, rebuildIndex } from '../qdrant.js';
+import { ensureTable, rebuildIndex } from '../vector-db.js';
 import { configureLogger } from '../logger.js';
 
 function setupOpencodeConfig(): void {
@@ -148,10 +148,6 @@ export async function initCommand(options: { global: boolean }): Promise<void> {
 
   const answers = await inquirer.prompt<{
     remoteUrl: string;
-    qdrantUrl: string;
-    collectionName: string;
-    llmBaseUrl: string;
-    llmModel: string;
     embedBaseUrl: string;
     embedModel: string;
   }>([
@@ -161,30 +157,6 @@ export async function initCommand(options: { global: boolean }): Promise<void> {
       message: 'GitHub repository URL (or leave empty for local-only):',
       default: '',
     }] : []),
-    {
-      type: 'input',
-      name: 'qdrantUrl',
-      message: 'Qdrant server URL:',
-      default: defaults.qdrant.url,
-    },
-    {
-      type: 'input',
-      name: 'collectionName',
-      message: 'Qdrant collection name:',
-      default: defaults.qdrant.collection,
-    },
-    {
-      type: 'input',
-      name: 'llmBaseUrl',
-      message: 'Ollama (LLM) base URL:',
-      default: defaults.llm.baseUrl,
-    },
-    {
-      type: 'input',
-      name: 'llmModel',
-      message: 'LLM model:',
-      default: defaults.llm.model,
-    },
     {
       type: 'input',
       name: 'embedBaseUrl',
@@ -205,15 +177,6 @@ export async function initCommand(options: { global: boolean }): Promise<void> {
       remote: (global ? answers.remoteUrl : '') || '',
       branch: 'main' as const,
     },
-    qdrant: {
-      url: answers.qdrantUrl || defaults.qdrant.url,
-      collection: answers.collectionName || defaults.qdrant.collection,
-    },
-    llm: {
-      provider: 'ollama' as const,
-      model: answers.llmModel || defaults.llm.model,
-      baseUrl: answers.llmBaseUrl || defaults.llm.baseUrl,
-    },
     embedding: {
       provider: 'ollama' as const,
       model: answers.embedModel || defaults.embedding.model,
@@ -226,30 +189,25 @@ export async function initCommand(options: { global: boolean }): Promise<void> {
     },
   };
 
-  // Set up directory structure
   const memoryRoot = getMemoryRoot();
   if (!fs.existsSync(memoryRoot)) {
     fs.mkdirSync(memoryRoot, { recursive: true });
   }
 
-  // Create vault directory
   ensureVault();
   console.log(chalk.green('✓ Vault directory created'));
 
-  // Create logs directory
   const logsDir = path.join(memoryRoot, 'logs');
   if (!fs.existsSync(logsDir)) {
     fs.mkdirSync(logsDir, { recursive: true });
   }
   console.log(chalk.green('✓ Logs directory created'));
 
-  // Create .memory/.gitignore
   const gitignorePath = path.join(memoryRoot, '.gitignore');
-  const gitignoreContent = '# Memory tool gitignore\nlogs/\n.obsidian/\n';
+  const gitignoreContent = '# Memory tool gitignore\nlogs/\nmemory.db\n.obsidian/\n';
   fs.writeFileSync(gitignorePath, gitignoreContent, 'utf-8');
   console.log(chalk.green('✓ .gitignore created'));
 
-  // Initialize logger
   configureLogger(config.logging);
 
   saveConfig(config);
@@ -274,11 +232,10 @@ export async function initCommand(options: { global: boolean }): Promise<void> {
   }
 
   try {
-    await ensureCollection();
-    console.log(chalk.green('✓ Qdrant collection created/verified'));
+    ensureTable();
+    console.log(chalk.green('✓ SQLite vector database created'));
   } catch (e) {
-    console.log(chalk.red(`✗ Failed to connect to Qdrant: ${(e as Error).message}`));
-    console.log(chalk.yellow('  Make sure Qdrant is running: docker run -p 6333:6333 qdrant/qdrant'));
+    console.log(chalk.red(`✗ Failed to initialize database: ${(e as Error).message}`));
     return;
   }
 
@@ -318,8 +275,7 @@ export async function initCommand(options: { global: boolean }): Promise<void> {
   console.log(chalk.dim(`   Store: ${root}`));
   console.log(chalk.dim(`   Vault: ${getVaultRoot()}`));
   console.log(chalk.dim(`   Config: ${getConfigPath()}`));
-  console.log(chalk.dim(`   Qdrant: ${config.qdrant.url}/${config.qdrant.collection}`));
-  console.log(chalk.dim(`   LLM: ${config.llm.model} @ ${config.llm.baseUrl}`));
+  console.log(chalk.dim(`   Embedding: ${config.embedding.model} @ ${config.embedding.baseUrl}`));
   console.log();
   console.log(chalk.cyan('  Next steps:'));
   console.log(chalk.dim('    memory ingest "something to remember"'));

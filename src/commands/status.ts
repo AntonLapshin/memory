@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { getStatus, getCommitCount } from '../git.js';
 import { getAllMemoryFiles, isLocalMode } from '../config.js';
-import { getAllTags } from '../qdrant.js';
+import { getAllTags, getMemoryCount } from '../vector-db.js';
 
 export async function statusCommand(): Promise<void> {
   console.log(chalk.bold.cyan('\n🧠 Memory Status\n'));
@@ -11,10 +11,12 @@ export async function statusCommand(): Promise<void> {
     const totalFiles = getAllMemoryFiles().length;
     const commitCount = await getCommitCount();
     const tags = await getAllTags();
+    const indexedCount = await getMemoryCount();
 
     if (isLocalMode()) {
       console.log(chalk.white('Mode:     '), chalk.dim('local (project-scoped)'));
       console.log(chalk.white('Memories: '), chalk.bold(String(totalFiles)));
+      console.log(chalk.white('Indexed:  '), chalk.bold(String(indexedCount)));
       console.log(
         chalk.white('Tags:     '),
         chalk.dim(
@@ -33,6 +35,7 @@ export async function statusCommand(): Promise<void> {
     console.log();
 
     console.log(chalk.white('Memories:  '), chalk.bold(String(totalFiles)));
+    console.log(chalk.white('Indexed:   '), chalk.bold(String(indexedCount)));
     console.log(
       chalk.white('Tags:      '),
       chalk.dim(

@@ -13,7 +13,6 @@ import { importCommand, exportCommand } from './commands/import-export.js';
 import { configCommand } from './commands/config-cmd.js';
 
 export function run(): void {
-  // Initialize logger from config
   try {
     const cfg = loadConfig();
     configureLogger(cfg.logging);
@@ -28,7 +27,7 @@ export function run(): void {
     .description(
       '🧠 AI agent memory tool — store, search, and link memories with vector search',
     )
-    .version('1.0.0');
+    .version('2.0.0');
 
   program
     .command('init')
@@ -48,14 +47,14 @@ export function run(): void {
   program
     .command('ingest')
     .description(
-      'Save a new memory. The tool summarizes, finds the right folder, and cross-links.',
+      'Save a new memory. Requires --path, --title, --summary, and optionally --tags.',
     )
     .argument('<text>', 'Raw text to ingest as a memory')
-    .option('--title <title>', 'Specify title (skip LLM guess)')
-    .option('--path <path>', 'Specify exact file path (skip LLM guess)')
-    .option('--tags <tags>', 'Comma-separated tags (skip LLM guess)')
+    .option('--title <title>', '1-8 word title (required)')
+    .option('--path <path>', 'File path relative to vault (required)')
+    .option('--summary <summary>', '2-5 sentence summary (required)')
+    .option('--tags <tags>', 'Comma-separated tags')
     .option('--dry-run', 'Preview without saving')
-    .option('--no-cross-ref', 'Skip cross-referencing other memories')
     .option('--no-git', 'Skip git commit')
     .action(async (text: string, options) => {
       try {
@@ -71,7 +70,6 @@ export function run(): void {
     .description('Search memories by semantic similarity.')
     .argument('<query>', 'Natural language search query')
     .option('--limit <number>', 'Max results (default: 5)', '5')
-    .option('--tags <tags>', 'Filter by comma-separated tags')
     .option('--full', 'Show full content of all matches')
     .option('--json', 'Machine-readable JSON output')
     .action(async (query: string, options) => {
@@ -88,7 +86,7 @@ export function run(): void {
 
   program
     .command('index')
-    .description('Rebuild the Qdrant index from all .md memory files.')
+    .description('Rebuild the vector index from all .md memory files.')
     .action(async () => {
       try {
         await indexCommand();
@@ -166,7 +164,7 @@ export function run(): void {
     .description('View or update memory configuration.')
     .option(
       '--set <key=value>',
-      'Set a config value (e.g. qdrant.url=http://localhost:6334)',
+      'Set a config value (e.g. embedding.model=nomic-embed-text)',
     )
     .action(async (options) => {
       try {

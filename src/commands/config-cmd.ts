@@ -13,7 +13,7 @@ export function configCommand(options: ConfigOptions = {}): void {
 
     if (!key || !value) {
       console.log(chalk.red('Error: Use format "memory config --set key=value"'));
-      console.log(chalk.dim('Example: memory config --set qdrant.url=http://localhost:6334'));
+      console.log(chalk.dim('Example: memory config --set embedding.model=nomic-embed-text'));
       return;
     }
 
@@ -43,7 +43,7 @@ export function configCommand(options: ConfigOptions = {}): void {
     saveConfig(config);
     console.log(chalk.green(`✓ Updated ${key}: ${oldValue} → ${current[lastKey]}`));
     console.log(
-      chalk.dim('  You may need to run "memory index" if you changed Qdrant or embedding settings.'),
+      chalk.dim('  You may need to run "memory index" if you changed embedding settings.'),
     );
   } else {
     const config = loadConfig();
@@ -51,15 +51,6 @@ export function configCommand(options: ConfigOptions = {}): void {
     console.log(chalk.white('Git:'));
     console.log(chalk.dim(`  remote:  ${config.git.remote || '(not set)'}`));
     console.log(chalk.dim(`  branch:  ${config.git.branch}`));
-    console.log();
-    console.log(chalk.white('Qdrant:'));
-    console.log(chalk.dim(`  url:        ${config.qdrant.url}`));
-    console.log(chalk.dim(`  collection: ${config.qdrant.collection}`));
-    console.log();
-    console.log(chalk.white('LLM:'));
-    console.log(chalk.dim(`  provider: ${config.llm.provider}`));
-    console.log(chalk.dim(`  model:    ${config.llm.model}`));
-    console.log(chalk.dim(`  baseUrl:  ${config.llm.baseUrl}`));
     console.log();
     console.log(chalk.white('Embedding:'));
     console.log(chalk.dim(`  provider:   ${config.embedding.provider}`));

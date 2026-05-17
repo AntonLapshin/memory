@@ -2,36 +2,35 @@
 
 > Personal knowledge store for AI agents — persistent, searchable, self-organizing.
 
-Memory stores facts, decisions, preferences, and lessons as Markdown files in a hierarchical folder structure. It uses Qdrant for vector search and an LLM for automatic summarization, tagging, folder placement, and cross-referencing. Built for the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/).
+Memory stores facts, decisions, preferences, and lessons as Markdown files in a hierarchical folder structure. It uses **SQLite-vec** for embedded vector search (no Docker required) and Ollama for embeddings. Built for the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/).
 
 ## Architecture
 
 ```
-AI Agent (guided by AGENTS.md or claude.md)
-    │  MCP Protocol (stdio)
+AI Agent (Opus 4.6 / DeepSeek V4)
+    │  MCP Protocol (stdio) + native file tools (Read/Write/Edit/Glob/Grep)
     ▼
-MCP Server (thin wrapper)
+MCP Server (4 thin tools: search, write, delete, move)
     │  Node.js API
     ▼
-Memory CLI  ─── Qdrant (vector search)
-    │            Ollama (LLM + embeddings)
+Memory CLI  ─── SQLite-vec (embedded vector search)
+    │            Ollama (embeddings only)
     │            Git (version control)
     ▼
-~/.memory/**/*.md  (source of truth)
+~/.memory/vault/**/*.md  (source of truth)
 ```
+
+**Key design**: The agent does all intellectual work — placement, tagging, summarization, merging, cross-referencing. The MCP server only handles filesystem writes, vector indexing, and search. No local LLM is used for content decisions.
 
 ## Requirements
 
 - **Node.js** >= 18
-- **Ollama** running with models pulled:
+- **Ollama** running with embedding model:
   ```bash
-  ollama pull gemma4:e2b
   ollama pull nomic-embed-text
   ```
-- **Qdrant** (via Docker):
-  ```bash
-  docker run -p 6333:6333 qdrant/qdrant
-  ```
+
+No Docker needed. SQLite-vec is an embedded, in-process vector database.
 
 ## Quick Start
 
@@ -42,66 +41,44 @@ git clone https://github.com/AntonLapshin/memory.git
 cd memory
 npm i
 npm run build
-npm i -g # makes `memory` available globally
+npm i -g # makes `memory` and `mcp-memory` available globally
 ```
 
 ### Initialize
 
 ```bash
-memory init # local installation in the current directory (for project-specific memories)
+memory init    # local (.memory/ in current directory)
+memory init -g # global (~/.memory/ for shared memories across projects)
 ```
 
-or
-
-```bash
-memory init -g # global installation in the root directory ~/.memory to have shared memories across all projects
+Creates `.memory/` with:
 ```
-
-Interactive wizard asks for:
-- GitHub repo URL (optional — local-only is fine)
-- Qdrant URL (default: `http://localhost:6333`) Dashboard is available at `http://localhost:6333/dashboard`
-- Ollama URLs and model names for LLM + embeddings
-
-Creates `~/.memory/` with the following structure:
-```
-~/.memory/
-├── config.json          # Tool configuration
-├── .gitignore            # Ignores logs/, .obsidian/
-├── vault/                # All .md memory files live here
+.memory/
+├── config.json
+├── memory.db          # SQLite-vec vector database
+├── .gitignore
+├── vault/             # All .md memory files
 │   ├── personal/
 │   ├── work/
 │   └── learning/
-└── logs/                 # Daily log files (when enabled)
-    └── memory-2025-01-15.log
+└── logs/
 ```
 
 ### Save a Memory
 
-**Via MCP (agent-driven, recommended for quality):**
+**Via MCP (agent-driven — recommended):**
 
-The AI agent follows the [Smart Ingestion Protocol](AGENTS.md#smart-ingestion-protocol):
-1. Searches for related/duplicate memories before creating anything
-2. Decides whether to merge into an existing memory or create a new one
-3. Determines the best folder path, tags, and summary
-4. Calls `memory_ingest` with all decisions pre-made — the local LLM is bypassed
+The agent follows the Ingestion Protocol:
+1. Searches for related/duplicate memories
+2. Decides placement, tags, summary
+3. Writes the full markdown content
+4. Calls `memory_write` with all parameters
 
-**Via CLI (quick capture, local LLM handles it):**
+**Via CLI:**
 
 ```bash
-memory ingest "I use neovim with lazy.nvim and prefer the catppuccin theme"
+memory ingest "content text" --path personal/preferences/editor-setup.md --title "Editor Setup" --summary "Uses Neovim..."
 ```
-
-The CLI still uses the local LLM for convenience. Use `--path`, `--tags`, `--title`
-flags to override LLM decisions.
-
-The tool then:
-1. Summarizes the content into a concise memory
-2. Chooses an appropriate folder path (when not agent-provided)
-3. Assigns relevant tags
-4. Formats the content with proper Markdown
-5. Finds and cross-links related existing memories
-6. Indexes in Qdrant for vector search
-7. Commits to git
 
 ### Search Memories
 
@@ -117,43 +94,34 @@ Found 2 matching memories:
    Editor Setup
    Uses neovim with lazy.nvim package manager...
    Tags: editor, neovim, preferences
-
-2. personal/preferences/development/terminal-setup.md (68%)
-   Terminal Setup
-   Uses Windows Terminal with fish shell...
-   Tags: terminal, shell, preferences
 ```
 
 ### Other Commands
 
 ```bash
 memory status              # Show repo status, counts, tags
-memory index               # Rebuild Qdrant index from .md files
+memory index               # Rebuild vector index from .md files
 memory pull                # Pull from remote, re-index
 memory push                # Push local commits
 memory config              # View/edit configuration
-memory config --set qdrant.url=http://localhost:6334
+memory config --set embedding.model=all-minilm
 
 memory export              # Export all memories to zip
-memory import memories.zip # Import from zip (with merge)
+memory import memories.zip # Import from zip
 ```
 
-## Vault Maintenance. Agent commands `/memory-dream` and `/memory-evaluate`
+## MCP Server
 
-Use the `/memory-dream` agent slash command to perform a quality pass over the entire vault. It scans for:
+The MCP server exposes 4 tools:
 
-- **Duplicates** — same fact/event stored in multiple files
-- **Contradictions** — conflicting information between memories
-- **Folder placement** — memories in wrong domain/category paths
-- **Broken links** — `[[wiki links]]` pointing to non-existent files
-- **Content quality** — missing summaries, tags, or formatting issues
-- **Staleness** — outdated or superseded information
+| Tool | Description |
+|------|------------|
+| `memory_search` | Semantic vector search |
+| `memory_write` | Create or overwrite a memory (path, title, tags, summary, content all required) |
+| `memory_delete` | Delete a memory file and index entry |
+| `memory_move` | Move/rename a memory |
 
-The command walks through discovery → analysis → user confirmation → execution → re-index. Run `/memory-dream` periodically to keep the vault clean and well-structured.
-
-Use `/memory-evaluate` to get a scored health report (0-100) of the vault without making changes.
-It produces a detailed markdown report at `.memory/reports/evaluate-YYYY-MM-DD.md`.
-Run it before and after `/memory-dream` to measure improvement.
+For reading files, listing memories, finding tags — the agent uses its native Read, Glob, Grep tools directly on `.md` files.
 
 ## Memory File Format
 
@@ -171,106 +139,25 @@ summary: "Uses neovim with lazy.nvim. Theme is catppuccin..."
 # Editor Setup
 
 Uses [[neovim]] with the [[lazy.nvim]] plugin manager.
-Preferred theme is [[catppuccin]]. Key plugins include
-[[telescope]], [[nvim-treesitter]], and [[which-key]].
+Preferred theme is [[catppuccin]].
 
 ## Related
-<!-- Auto-generated by memory tool. Do not edit manually. -->
 - [[Terminal Setup]]
 - [[Dotfiles Management]]
 ```
 
-- `summary` field is used for Qdrant vector embedding (≤500 chars)
-- `## Related` section is auto-maintained by the tool during cross-referencing
-- `[[wiki links]]` in the body can be added manually for conceptual references
+- `summary` field is used for vector embedding (≤500 chars)
+- `[[wiki links]]` are Obsidian-compatible
+- `## Related` section is managed by the agent (not auto-generated)
 
-## MCP Server
+## Agent Commands
 
-The MCP server exposes 9 tools to AI agents:
-
-| Tool | Description |
-|------|------------|
-| `memory_search` | Semantic vector search with tag filtering |
-| `memory_get` | Read full content of a specific memory |
-| `memory_ingest` | Save new memory or update existing via `merge_with`. Agent provides `path`, `title`, `tags`, `summary` for best quality; local LLM is used as fallback. |
-| `memory_list_tags` | List all unique tags in the store |
-| `memory_list_recent` | Show recently modified memories |
-| `memory_list_all` | List all memories with full metadata |
-| `memory_delete` | Delete a memory (auto-cleans references in other files) |
-| `memory_move` | Move/rename a memory (auto-updates all references) |
-| `memory_clear_collection` | Wipe and recreate the Qdrant index |
-
-## Folder Convention
-
-Memories are organized from abstract to concrete:
-
-```
-personal/
-  health/
-  finance/
-    tax/
-      2022/
-        tax-return.md
-  relationships/
-    alice/
-  preferences/
-    development/
-      editor-setup.md
-
-work/
-  project-x/
-    architecture/
-      design-decisions.md
-    tips/
-      debugging-tips.md
-
-learning/
-  courses/
-  books/
-  notes/
-```
-
-The agent determines the exact path during ingestion following the Smart Ingestion
-Protocol (see AGENTS.md). The folder structure grows organically as new topics are introduced.
-
-## How It Works
-
-### Ingestion Flow
-
-**Agent-driven path (recommended):**
-
-1. **Search** — Agent searches for related/duplicate memories before ingesting
-2. **Analyze** — Agent decides: merge into existing, create new, or restructure
-3. **Draft** — Agent writes markdown content, summary, and chooses path/tags
-4. **Ingest** — `memory_ingest` with all parameters explicitly provided (LLM bypassed)
-5. **Cross-referencing** — Vector search for related memories → LLM decides which to link → bidirectional `## Related` updates
-6. **Index** — Upsert into Qdrant with summary embedding
-7. **Commit** — Git add + commit (local only)
-
-**CLI path (local LLM fallback):**
-
-1. **Summarize** — LLM call: raw text → `{ title, summary, path, tags, content }`
-2. **Duplicate check** — Embed summary, search Qdrant for near-duplicates (0.95 threshold)
-3. **File creation** — Write `.md` file with frontmatter at the suggested path
-4-7 — Same cross-referencing, indexing, and commit steps as above
-
-### Retrieval Flow
-
-1. **Embed query** — Same embedding model
-2. **Vector search** — Qdrant cosine similarity
-3. **Display** — Ranked results with scores, summaries, and tags
-
-### Persistence
-
-- **Source of truth**: `.md` files in git (`~/.memory/vault/`)
-- **Qdrant**: Derived index, fully rebuildable via `memory index`
-- **Dimension auto-detection**: Embedding dimensions are detected automatically and the Qdrant collection is recreated if they change
-- **No snapshots in git** — each `.md` stores its own summary in frontmatter
-- **Logging**: All operations are logged to `~/.memory/logs/memory-YYYY-MM-DD.log` when enabled
+When configured with OpenCode or Claude, the agent receives a `/memory` slash command covering:
+- **Ingestion Protocol** — search → analyze → place → tag → summarize → write
+- **Vault Maintenance** — quality scan, duplication detection, link validation
+- **Health Evaluation** — scored report (0-100) with structured recommendations
 
 ## Configuration
-
-View with `memory config`. Edit with `memory config --set key=value`.
 
 ```json
 {
@@ -278,15 +165,6 @@ View with `memory config`. Edit with `memory config --set key=value`.
   "git": {
     "remote": "https://github.com/user/my-memories",
     "branch": "main"
-  },
-  "qdrant": {
-    "url": "http://localhost:6333",
-    "collection": "memories"
-  },
-  "llm": {
-    "provider": "ollama",
-    "model": "gemma4:e2b",
-    "baseUrl": "http://localhost:11434"
   },
   "embedding": {
     "provider": "ollama",
@@ -305,7 +183,7 @@ View with `memory config`. Edit with `memory config --set key=value`.
 
 ```bash
 npm install
-npm run dev          # Run CLI with tsx (no build needed)
+npm run dev          # Run CLI with tsx
 npm run mcp          # Run MCP server with tsx
 npm run typecheck    # TypeScript type checking
 npm run build        # Compile TypeScript to dist/

@@ -5,6 +5,7 @@ import type { Config } from './types.js';
 
 const MEMORY_DIR = '.memory';
 const CONFIG_FILE = 'config.json';
+const DB_FILE = 'memory.db';
 
 let _memoryRoot: string | null = null;
 
@@ -38,21 +39,16 @@ export function getConfigPath(): string {
   return path.join(getMemoryRoot(), CONFIG_FILE);
 }
 
+export function getDbPath(): string {
+  return path.join(getMemoryRoot(), DB_FILE);
+}
+
 export function getDefaultConfig(): Config {
   return {
     version: 1,
     git: {
       remote: '',
       branch: 'main',
-    },
-    qdrant: {
-      url: 'http://localhost:6333',
-      collection: 'memories',
-    },
-    llm: {
-      provider: 'ollama',
-      model: 'gemma4:e2b',
-      baseUrl: 'http://localhost:11434',
     },
     embedding: {
       provider: 'ollama',

@@ -135,7 +135,7 @@ export async function importCommand(
     {
       type: 'confirm',
       name: 'shouldIndex',
-      message: 'Update Qdrant index with imported memories?',
+      message: 'Index imported memories for search?',
       default: true,
     },
   ]);

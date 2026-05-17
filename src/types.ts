@@ -4,18 +4,6 @@ export interface GitConfig {
   tokenEnv?: string;
 }
 
-export interface QdrantConfig {
-  url: string;
-  collection: string;
-}
-
-export interface LlmConfig {
-  provider: 'ollama' | 'openai' | 'anthropic';
-  model: string;
-  baseUrl: string;
-  apiKeyEnv?: string;
-}
-
 export interface EmbeddingConfig {
   provider: 'ollama' | 'openai';
   model: string;
@@ -32,8 +20,6 @@ export interface LoggingConfig {
 export interface Config {
   version: number;
   git: GitConfig;
-  qdrant: QdrantConfig;
-  llm: LlmConfig;
   embedding: EmbeddingConfig;
   logging: LoggingConfig;
 }
@@ -55,19 +41,6 @@ export interface SearchResult {
   summary: string;
   tags: string[];
   score: number;
-}
-
-export interface SummarizeResult {
-  title: string;
-  summary: string;
-  suggested_path: string;
-  tags: string[];
-  content: string;
-}
-
-export interface CrossLinkDecision {
-  link: boolean;
-  reason: string;
 }
 
 export interface IndexResult {
@@ -93,5 +66,4 @@ export interface WriteMemoryData {
   summary: string;
   tags: string[];
   content: string;
-  relatedSection?: string;
 }
