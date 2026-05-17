@@ -6,7 +6,7 @@
   "main": "dist/src/cli.js",
   "bin": {
     "memory": "./dist/bin/memory.js",
-    "mcp-memory": "./dist/mcp-server.js"
+    "mcp-memory": "./dist/src/mcp-server.js"
   },
   "files": [
     "dist/",
@@ -16,8 +16,11 @@
     "build": "tsc",
     "start": "node dist/bin/memory.js",
     "dev": "tsx bin/memory.ts",
-    "mcp": "tsx mcp-server.ts",
-    "typecheck": "tsc --noEmit"
+    "mcp": "tsx src/mcp-server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [
     "memory",
@@ -49,8 +52,10 @@
     "@types/extract-zip": "^2.0.2",
     "@types/inquirer": "^9.0.7",
     "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^4.1.6",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.6"
   },
   "engines": {
     "node": ">=18"

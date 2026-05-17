@@ -14,17 +14,17 @@ import {
   searchMemories,
   upsertMemory,
   deleteMemory as deleteVectorMemory,
-} from './src/vector-db.js';
+} from './vector-db.js';
 import {
   readMemoryFile,
   writeMemoryFile,
   deleteMemoryFile,
   getAbsolutePath,
-} from './src/memory-file.js';
-import { loadConfig } from './src/config.js';
-import { commit } from './src/git.js';
-import { configureLogger, logger } from './src/logger.js';
-import type { SearchResult, MemoryFile } from './src/types.js';
+} from './memory-file.js';
+import { loadConfig } from './config.js';
+import { commit } from './git.js';
+import { configureLogger, logger } from './logger.js';
+import type { SearchResult, MemoryFile } from './types.js';
 
 async function main(): Promise<void> {
   try {

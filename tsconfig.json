@@ -16,6 +16,6 @@
     "sourceMap": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "mcp-server.ts", "bin/**/*.ts"],
-  "exclude": ["node_modules", "dist", ".memory"]
+  "include": ["src/**/*.ts", "bin/**/*.ts"],
+  "exclude": ["node_modules", "dist", ".memory", "src/__tests__"]
 }
